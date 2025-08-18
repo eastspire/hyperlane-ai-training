@@ -11,7 +11,7 @@ import re
 SOURCE_PATH = './training_sources'
 # We now include markdown, Rust, TOML, and other common code files.
 FILE_PATTERNS = ["**/*.md", "**/*.rs", "**/*.toml", "**/*.py", "**/*.js", "**/*.ts"]
-OUTPUT_FILE = 'training_data.jsonl'
+OUTPUT_FILE = './training_data.jsonl'
 BASE_MODEL_ID = "Qwen/Qwen2-1.5B-Instruct"
 
 QA_GENERATION_PROMPT = """

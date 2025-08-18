@@ -7,7 +7,7 @@ from peft import LoraConfig, get_peft_model
 # --- Configuration ---
 BASE_MODEL = "Qwen/Qwen2-1.5B-Instruct"
 OUTPUT_MODEL_NAME = "hyperlane-qwen2-finetuned-model"
-DATASET_FILE = "./output/training_data.jsonl"
+DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 
 # Modern TRL library prefers a formatting function over 'dataset_text_field'.

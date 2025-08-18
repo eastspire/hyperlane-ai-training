@@ -80,7 +80,8 @@ def main():
             repo_name = repo_url.split('/')[-1].replace('.git', '')
             repo_path = os.path.join(org_dir, repo_name)
             if os.path.exists(repo_path):
-                print(f"Repository {repo_name} already exists. Skipping clone.")
+                print(f"Repository {repo_name} already exists. Pulling latest changes...")
+                run_command(["git", "pull"], cwd=repo_path)
             else:
                 print(f"Cloning {repo_name} into {org} folder...")
                 run_command(["git", "clone", repo_url, repo_path])

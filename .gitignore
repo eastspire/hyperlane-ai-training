@@ -17,6 +17,7 @@ llama.cpp/
 
 # Hugging Face trainer output (checkpoints, logs)
 outputs/
+logs/
 
 # Saved model artifacts
 src/hyperlane-qwen2-finetuned-model/

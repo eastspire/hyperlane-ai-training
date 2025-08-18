@@ -43,6 +43,11 @@ def main():
         shutil.rmtree("outputs")
         print("Deleted directory: outputs")
 
+    # Delete the logs directory
+    if os.path.isdir("logs"):
+        shutil.rmtree("logs")
+        print("Deleted directory: logs")
+
     # Delete the training_data.jsonl file
     training_data_path = "training_data.jsonl"
     if os.path.exists(training_data_path):

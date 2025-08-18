@@ -19,17 +19,17 @@ The entire process, from data acquisition to final model conversion, is handled 
 
 The project is organized as follows:
 
--   `run_all.py`: The main script to execute the entire pipeline.
--   `src/`: Contains all the Python scripts for the different pipeline stages.
-    -   `acquire_data.py`: Clones repositories for training data.
-    -   `prepare_data.py`: Prepares the training data.
-    -   `train.py`: Fine-tunes the base model.
-    -   `merge_and_export.py`: Merges the LoRA adapters.
-    -   `gguf_converter.py`: Converts the model to GGUF format.
--   `llama.cpp/`: A submodule for GGUF conversion.
--   `outputs/`: Contains training checkpoints and logs.
--   `training_sources/`: Stores the cloned source code and documents for training.
--   `README.md`: This file.
+- `run_all.py`: The main script to execute the entire pipeline.
+- `src/`: Contains all the Python scripts for the different pipeline stages.
+  - `acquire_data.py`: Clones repositories for training data.
+  - `prepare_data.py`: Prepares the training data.
+  - `train.py`: Fine-tunes the base model.
+  - `merge_and_export.py`: Merges the LoRA adapters.
+  - `gguf_converter.py`: Converts the model to GGUF format.
+- `llama.cpp/`: A submodule for GGUF conversion.
+- `outputs/`: Contains training checkpoints and logs.
+- `training_sources/`: Stores the cloned source code and documents for training.
+- `README.md`: This file.
 
 ---
 

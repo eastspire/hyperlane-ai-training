@@ -15,6 +15,24 @@ The entire process, from data acquisition to final model conversion, is handled 
 
 ---
 
+## Project Structure
+
+The project is organized as follows:
+
+-   `run_all.py`: The main script to execute the entire pipeline.
+-   `src/`: Contains all the Python scripts for the different pipeline stages.
+    -   `acquire_data.py`: Clones repositories for training data.
+    -   `prepare_data.py`: Prepares the training data.
+    -   `train.py`: Fine-tunes the base model.
+    -   `merge_and_export.py`: Merges the LoRA adapters.
+    -   `gguf_converter.py`: Converts the model to GGUF format.
+-   `llama.cpp/`: A submodule for GGUF conversion.
+-   `outputs/`: Contains training checkpoints and logs.
+-   `training_sources/`: Stores the cloned source code and documents for training.
+-   `README.md`: This file.
+
+---
+
 ## Prerequisites
 
 1.  **Python 3.9+**
@@ -34,13 +52,13 @@ First, set up a dedicated Python virtual environment. Open your terminal (PowerS
 
 ```bash
 # Create the virtual environment
-python -m venv venv
+python -m venv src/venv
 
 # Activate the virtual environment
 # On Windows:
-.\venv\Scripts\activate
+.\src\venv\Scripts\activate
 # On macOS/Linux:
-# source venv/bin/activate
+# source src/venv/bin/activate
 ```
 
 ### 2. Install Dependencies
@@ -49,7 +67,7 @@ Install all necessary Python libraries from the `requirements.txt` file.
 
 ```bash
 # Ensure your venv is active
-pip install -r requirements.txt
+pip install -r src/requirements.txt
 ```
 
 ### 3. Execute the Pipeline

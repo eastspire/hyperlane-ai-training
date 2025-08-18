@@ -1,7 +1,7 @@
 # Git Ignore file for the AI Training Project
 
 # Python virtual environment
-venv/
+src/venv/
 __pycache__/
 *.pyc
 
@@ -13,14 +13,14 @@ training_sources/
 llama.cpp/
 
 # Generated training data file
-training_data.jsonl
+src/training_data.jsonl
 
 # Hugging Face trainer output (checkpoints, logs)
 outputs/
 
 # Saved model artifacts
-hyperlane-qwen2-finetuned-model/
-hyperlane-qwen2-merged-model/
+src/hyperlane-qwen2-finetuned-model/
+src/hyperlane-qwen2-merged-model/
 
 # Final GGUF model file
 *.gguf

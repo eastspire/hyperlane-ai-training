@@ -13,7 +13,7 @@ training_sources/
 llama.cpp/
 
 # Generated training data file
-src/training_data.jsonl
+**/training_data.jsonl
 
 # Hugging Face trainer output (checkpoints, logs)
 outputs/

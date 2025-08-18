@@ -12,6 +12,7 @@ FINETUNED_MODEL_PATH = "hyperlane-qwen2-finetuned-model"
 MERGED_MODEL_SAVE_PATH = "hyperlane-qwen2-merged-model"
 # --- End Configuration ---
 
+
 def merge_model():
     """
     Merges the LoRA adapters with the base model and saves the result.
@@ -37,13 +38,14 @@ def merge_model():
     # Create directory if it doesn't exist
     if not os.path.exists(MERGED_MODEL_SAVE_PATH):
         os.makedirs(MERGED_MODEL_SAVE_PATH)
-        
+
     # Save the merged model and tokenizer
     merged_model.save_pretrained(MERGED_MODEL_SAVE_PATH)
     tokenizer.save_pretrained(MERGED_MODEL_SAVE_PATH)
 
     print("\n\033[92mSuccessfully merged and saved the model!\033[0m")
     print(f"Next step: Convert the model in '{MERGED_MODEL_SAVE_PATH}' to GGUF format.")
+
 
 if __name__ == "__main__":
     merge_model()

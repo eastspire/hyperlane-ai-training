@@ -1,16 +1,18 @@
 import os
 import subprocess
 import requests
-import shutil
-import sys
 
 # --- Configuration ---
 # The main directory to hold all our training source files
 SOURCES_DIR = "./training_sources"
 # The original docs repository
-PRIMARY_REPO = {"url": "https://github.com/eastspire/ltpp-docs.git", "name": "ltpp-docs"}
+PRIMARY_REPO = {
+    "url": "https://github.com/eastspire/ltpp-docs.git",
+    "name": "ltpp-docs",
+}
 # The organizations from which to clone all public repositories
 ORGS_TO_CLONE = ["crates-dev", "hyperlane-dev"]
+
 
 def run_command(command, cwd="."):
     """Runs a command and checks for errors."""
@@ -21,8 +23,8 @@ def run_command(command, cwd="."):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        encoding='utf-8',
-        errors='replace'
+        encoding="utf-8",
+        errors="replace",
     )
     stdout, stderr = process.communicate()
     if process.returncode != 0:
@@ -30,6 +32,7 @@ def run_command(command, cwd="."):
         return False
     print("--- SUCCESS ---")
     return True
+
 
 def get_repo_urls_from_org(org_name):
     """Fetches all public repository clone URLs for a given GitHub organization."""
@@ -45,14 +48,15 @@ def get_repo_urls_from_org(org_name):
             if not data or not isinstance(data, list):
                 break
             for repo in data:
-                if isinstance(repo, dict) and 'clone_url' in repo:
-                    repo_urls.append(repo['clone_url'])
+                if isinstance(repo, dict) and "clone_url" in repo:
+                    repo_urls.append(repo["clone_url"])
             page += 1
         except requests.exceptions.RequestException as e:
             print(f"Error fetching repos for {org_name}: {e}")
             break
     print(f"Found {len(repo_urls)} repositories for {org_name}.")
     return repo_urls
+
 
 def main():
     """Clones all necessary repositories into a structured directory."""
@@ -73,20 +77,25 @@ def main():
         org_dir = os.path.join(SOURCES_DIR, org)
         if not os.path.isdir(org_dir):
             os.makedirs(org_dir)
-        
+
         repo_urls = get_repo_urls_from_org(org)
         print(f"\nStarting to process {len(repo_urls)} repositories for {org}...")
         for repo_url in repo_urls:
-            repo_name = repo_url.split('/')[-1].replace('.git', '')
+            repo_name = repo_url.split("/")[-1].replace(".git", "")
             repo_path = os.path.join(org_dir, repo_name)
             if os.path.exists(repo_path):
-                print(f"Repository {repo_name} already exists. Pulling latest changes...")
+                print(
+                    f"Repository {repo_name} already exists. Pulling latest changes..."
+                )
                 run_command(["git", "pull"], cwd=repo_path)
             else:
                 print(f"Cloning {repo_name} into {org} folder...")
                 run_command(["git", "clone", repo_url, repo_path])
 
-    print("\n\033[92mData acquisition complete! All repositories are organized in the '{SOURCES_DIR}' directory.\033[0m")
+    print(
+        "\n\033[92mData acquisition complete! All repositories are organized in the '{SOURCES_DIR}' directory.\033[0m"
+    )
+
 
 if __name__ == "__main__":
     main()

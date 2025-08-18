@@ -10,10 +10,12 @@ OUTPUT_MODEL_NAME = "hyperlane-qwen2-finetuned-model"
 DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 
+
 # Modern TRL library prefers a formatting function over 'dataset_text_field'.
 # This function simply takes a sample from the dataset and returns the text.
 def formatting_func(example):
     return example["text"]
+
 
 def train():
     """
@@ -50,16 +52,16 @@ def train():
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        formatting_func=formatting_func, # Use the new formatting_func
+        formatting_func=formatting_func,  # Use the new formatting_func
         args=TrainingArguments(
             per_device_train_batch_size=1,
             gradient_accumulation_steps=4,
             warmup_steps=2,
-            num_train_epochs=3, # Increased epochs for better learning
+            num_train_epochs=3,  # Increased epochs for better learning
             learning_rate=2e-4,
             logging_steps=1,
             optim="adamw_torch",
-            report_to="none", # Disable wandb integration
+            report_to="none",  # Disable wandb integration
             output_dir="../outputs",
         ),
     )
@@ -71,8 +73,11 @@ def train():
     print(f"Saving fine-tuned model to '{OUTPUT_MODEL_NAME}'...")
     model.save_pretrained(OUTPUT_MODEL_NAME)
     tokenizer.save_pretrained(OUTPUT_MODEL_NAME)
-    print(f"\n\033[92mModel saved in Hugging Face format at '{OUTPUT_MODEL_NAME}'!\033[0m")
+    print(
+        f"\n\033[92mModel saved in Hugging Face format at '{OUTPUT_MODEL_NAME}'!\033[0m"
+    )
     print("You will need to convert this model to GGUF format manually for LM Studio.")
+
 
 if __name__ == "__main__":
     train()

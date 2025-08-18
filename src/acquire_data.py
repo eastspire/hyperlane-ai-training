@@ -6,7 +6,7 @@ import sys
 
 # --- Configuration ---
 # The main directory to hold all our training source files
-SOURCES_DIR = "../training_sources"
+SOURCES_DIR = "./training_sources"
 # The original docs repository
 PRIMARY_REPO = {"url": "https://github.com/eastspire/ltpp-docs.git", "name": "ltpp-docs"}
 # The organizations from which to clone all public repositories

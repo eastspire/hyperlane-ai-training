@@ -8,7 +8,7 @@ import re
 
 # --- Configuration ---
 # The script now looks in the 'training_sources' directory.
-SOURCE_PATH = 'training_sources'
+SOURCE_PATH = './training_sources'
 # We now include markdown, Rust, TOML, and other common code files.
 FILE_PATTERNS = ["**/*.md", "**/*.rs", "**/*.toml", "**/*.py", "**/*.js", "**/*.ts"]
 OUTPUT_FILE = 'training_data.jsonl'

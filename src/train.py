@@ -66,7 +66,7 @@ def train():
         ),
     )
 
-    print("\n\033[94mStarting model training on CPU. This will be slow...\033[0m")
+    print("\n\033[94mStarting model training on GPU.\033[0m")
     trainer.train()
     print("\n\033[92mTraining complete!\033[0m")
 

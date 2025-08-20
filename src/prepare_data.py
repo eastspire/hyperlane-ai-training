@@ -41,9 +41,13 @@ def generate_qa_pairs(model, tokenizer, text_chunk):
             top_p=0.9,
         )
         response_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        json_match = re.search(r"[\[\s*\{.*\}\s*\]]", response_text, re.DOTALL)
+        # Corrected regex to find a JSON list, and added error handling for parsing.
+        json_match = re.search(r"(\[.*?\])", response_text, re.DOTALL)
         if json_match:
-            return json.loads(json_match.group(0))
+            try:
+                return json.loads(json_match.group(1))
+            except json.JSONDecodeError:
+                return []  # Return empty if the extracted part is not valid JSON
         return []
     except Exception:
         return []

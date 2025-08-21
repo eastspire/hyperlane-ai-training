@@ -2,6 +2,7 @@ import subprocess
 import sys
 import os
 import shutil
+import tempfile
 
 
 def run_step(script_name, logs_dir):
@@ -43,10 +44,17 @@ def main():
         shutil.rmtree("outputs")
         print("Deleted directory: outputs")
 
-    # Delete the logs directory
+    # Delete the old logs directory in CWD
     if os.path.isdir("logs"):
         shutil.rmtree("logs")
         print("Deleted directory: logs")
+
+    # Use a temporary directory for logs and clean it up
+    temp_dir = tempfile.gettempdir()
+    logs_dir = os.path.join(temp_dir, "training_logs")
+    if os.path.isdir(logs_dir):
+        shutil.rmtree(logs_dir)
+        print(f"Deleted directory: {logs_dir}")
 
     # Delete the training_data.jsonl file
     training_data_path = "training_data.jsonl"
@@ -56,9 +64,10 @@ def main():
 
     print("--- Cleanup complete ---")
 
-    logs_dir = "logs"
+    # Create the new logs directory
     if not os.path.isdir(logs_dir):
         os.makedirs(logs_dir)
+    print(f"--- Logs will be written to: {logs_dir} ---")
 
     pipeline_scripts = [
         "src/acquire_data.py",

@@ -20,6 +20,7 @@ outputs/
 logs/
 hyperlane-qwen2-merged-model/
 hyperlane-qwen2-finetuned-model/
+run_all.pid
 
 # Saved model artifacts
 src/hyperlane-qwen2-finetuned-model/

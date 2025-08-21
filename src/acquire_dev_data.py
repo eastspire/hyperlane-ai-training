@@ -57,7 +57,6 @@ def main():
     shutil.copy(readme_src_path, readme_dest_path)
     print("--- SUCCESS ---")
 
-
     print(
         "\n\033[92mData acquisition complete! All repositories are organized in the '{SOURCES_DIR}' directory.\033[0m"
     )

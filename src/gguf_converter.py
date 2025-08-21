@@ -4,11 +4,15 @@ import sys
 
 # --- Configuration ---
 # Path to the llama.cpp repository, assuming it's inside the current project directory
-LLAMA_CPP_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "llama.cpp"))
+LLAMA_CPP_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "llama.cpp")
+)
 MODEL_TO_CONVERT_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "hyperlane-qwen2-merged-model")
 )
-OUTPUT_GGUF_FILE = os.path.join("outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf")
+OUTPUT_GGUF_FILE = os.path.join(
+    "outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"
+)
 
 
 def run_command(command, cwd):
@@ -100,4 +104,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

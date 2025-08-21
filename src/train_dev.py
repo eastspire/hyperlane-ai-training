@@ -55,9 +55,9 @@ def train():
         formatting_func=formatting_func,  # Use the new formatting_func
         args=TrainingArguments(
             per_device_train_batch_size=1,
-            gradient_accumulation_steps=4,
-            warmup_steps=2,
-            num_train_epochs=3,  # Increased epochs for better learning
+            gradient_accumulation_steps=1,  # Dev-specific
+            warmup_steps=1,  # Dev-specific
+            num_train_epochs=1,  # Dev-specific
             learning_rate=2e-4,
             logging_steps=1,
             optim="adamw_torch",
@@ -66,9 +66,9 @@ def train():
         ),
     )
 
-    print("\n\033[94mStarting model training on GPU.\033[0m")
+    print("\n\033[94mStarting model training on CPU.\033[0m")
     trainer.train()
-    print("\n\033[92mTraining complete!\033[0m")
+    print("\n\032[92mTraining complete!\033[0m")
 
     print(f"Saving fine-tuned model to '{OUTPUT_MODEL_NAME}'...")
     model.save_pretrained(OUTPUT_MODEL_NAME)

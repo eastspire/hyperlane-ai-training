@@ -21,15 +21,15 @@ def train():
     """
     Loads the base model, the dataset, and runs the fine-tuning process.
     """
-    print(f"Loading base model '{BASE_MODEL}' for CPU training...")
+    print(f"Loading base model '{BASE_MODEL}' for GPU training...")
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
-        device_map="cpu",
-        torch_dtype=torch.float32,
+        device_map="auto",
+        torch_dtype=torch.float16,
         trust_remote_code=True,
     )
 

@@ -74,7 +74,7 @@ pip install -r src/requirements.txt
 
 Run the master script. This will trigger the entire end-to-end process.
 
-**Warning:** This process will take a very long time, potentially many hours, depending on your internet speed and CPU performance. It is fully automated, so you can let it run in the background.
+**Warning:** This process will take a very long time, potentially many hours, depending on your internet speed and auto performance. It is fully automated, so you can let it run in the background.
 
 ```bash
 python run_all.py

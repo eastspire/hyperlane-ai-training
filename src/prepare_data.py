@@ -59,7 +59,7 @@ def create_qa_training_data():
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL_ID,
         torch_dtype=torch.float32,
-        device_map="cpu",
+        device_map="auto",
         trust_remote_code=True,
     )
     if tokenizer.pad_token is None:

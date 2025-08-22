@@ -3,24 +3,21 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from datasets import load_dataset
 from trl import SFTTrainer
 
-# --- Configuration ---
 BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 OUTPUT_MODEL_NAME = "hyperlane-qwen2.5-coder-1.5b-finetuned"
 DATASET_FILE = "./training_data.jsonl"
-# --- End Configuration ---
+MAX_LENGTH = 32768
 
 
-def formatting_func(example, tokenizer, max_length=1024):
-    """
-    将文本转为模型输入，并生成 labels。
-    """
+def formatting_func(example):
+    tokenizer = formatting_func.tokenizer
     tokens = tokenizer(
         example["text"],
         truncation=True,
         padding="max_length",
-        max_length=max_length,
+        max_length=MAX_LENGTH,
     )
-    tokens["labels"] = tokens["input_ids"].copy()  # 自回归任务的 labels
+    tokens["labels"] = tokens["input_ids"].copy()
     return tokens
 
 
@@ -31,32 +28,26 @@ def train():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    formatting_func.tokenizer = tokenizer
+
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
         device_map="auto",
-        torch_dtype=torch.bfloat16,  # bf16 更省显存
+        torch_dtype=torch.bfloat16,
         trust_remote_code=True,
     )
 
-    # 关闭 KV cache 避免和 gradient checkpoint 冲突
     model.config.use_cache = False
-
-    # 启用 gradient checkpointing 节省显存
     model.gradient_checkpointing_enable()
 
     print(f"Loading dataset from {DATASET_FILE}...")
     dataset = load_dataset("json", data_files=DATASET_FILE, split="train")
-
-    # 对 dataset 做 tokenization
-    dataset = dataset.map(
-        lambda x: formatting_func(x, tokenizer),
-        batched=False,
-    )
+    dataset = dataset.map(formatting_func, batched=False)
 
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        tokenizer=tokenizer,
+        formatting_func=None,
         args=TrainingArguments(
             per_device_train_batch_size=1,
             gradient_accumulation_steps=4,
@@ -73,16 +64,14 @@ def train():
         ),
     )
 
-    print("\n\033[94mStarting model training on GPU.\033[0m")
+    print("\nStarting model training on GPU.")
     trainer.train()
-    print("\n\033[92mTraining complete!\033[0m")
+    print("\nTraining complete!")
 
     print(f"Saving fine-tuned model to '{OUTPUT_MODEL_NAME}'...")
     model.save_pretrained(OUTPUT_MODEL_NAME)
     tokenizer.save_pretrained(OUTPUT_MODEL_NAME)
-    print(
-        f"\n\033[92mModel saved in Hugging Face format at '{OUTPUT_MODEL_NAME}'!\033[0m"
-    )
+    print(f"Model saved in Hugging Face format at '{OUTPUT_MODEL_NAME}'!")
 
 
 if __name__ == "__main__":

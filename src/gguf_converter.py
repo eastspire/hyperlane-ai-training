@@ -8,9 +8,7 @@ LLAMA_CPP_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "llama.cpp")
 )
 MODEL_TO_CONVERT_PATH = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__), "..", "hyperlane-qwen2.5-coder-1.5b-merged-model"
-    )
+    os.path.join(os.path.dirname(__file__), "..", "hyperlane-qwen2.5-coder-1.5b-merged")
 )
 OUTPUT_GGUF_FILE = os.path.join(
     "outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"

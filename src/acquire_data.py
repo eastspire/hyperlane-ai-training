@@ -21,7 +21,7 @@ MAX_WORKERS = 10
 def run_command(command, cwd=".", quiet=False):
     """Runs a command and checks for errors."""
     if not quiet:
-        print(f"--- Running: {" ".join(command)} in {cwd}")
+        print(f"--- Running: {' '.join(command)} in {cwd}")
     try:
         process = subprocess.Popen(
             command,
@@ -35,13 +35,13 @@ def run_command(command, cwd=".", quiet=False):
         stdout, stderr = process.communicate(timeout=300)  # 5-minute timeout
         if process.returncode != 0:
             # Print error only if it fails to keep logs clean
-            print(f"--- ERROR running {" ".join(command)} in {cwd} ---\n{stderr.strip()}")
+            print(f"--- ERROR running {' '.join(command)} in {cwd} ---\n{stderr.strip()}")
             return False
         if not quiet:
-            print(f"--- SUCCESS: {" ".join(command)} in {cwd}")
+            print(f"--- SUCCESS: {' '.join(command)} in {cwd}")
         return True
     except subprocess.TimeoutExpired:
-        print(f"--- TIMEOUT ERROR running {" ".join(command)} in {cwd} ---")
+        print(f"--- TIMEOUT ERROR running {' '.join(command)} in {cwd} ---")
         # process.kill() will be handled by Popen's context manager if we use it,
         # but here we ensure it's terminated.
         process.kill()
@@ -49,6 +49,7 @@ def run_command(command, cwd=".", quiet=False):
     except Exception as e:
         print(f"--- EXCEPTION in run_command: {e} ---")
         return False
+
 
 
 def get_repo_urls_from_org(org_name):

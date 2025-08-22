@@ -61,7 +61,7 @@ def train():
             learning_rate=2e-4,
             logging_steps=1,
             bf16=True,
-            tf32=True,
+            tf32=False,
             optim="adamw_torch",
             report_to="none",  # Disable wandb integration
             output_dir="./outputs",

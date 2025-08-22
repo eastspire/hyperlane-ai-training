@@ -7,7 +7,9 @@ from tqdm import tqdm
 SOURCE_PATH = "./training_sources"
 FILE_PATTERNS = ["**/*.md", "**/*.rs", "**/*.toml", "**/*.py", "**/*.js", "**/*.ts"]
 OUTPUT_FILE = "./training_data.jsonl"
-CHUNK_SIZE = 10000  # Process files in larger chunks
+# The CHUNK_SIZE determines the maximum sequence length for the model.
+# All data from all files is processed, just split into these chunks.
+CHUNK_SIZE = 88888888
 # --- End Configuration ---
 
 

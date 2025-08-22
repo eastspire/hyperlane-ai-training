@@ -9,6 +9,7 @@ from datasets import load_dataset
 from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
 
+
 # --- Configuration ---
 BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 OUTPUT_MODEL_NAME = "hyperlane-qwen2.5-coder-1.5b-finetuned"
@@ -16,15 +17,11 @@ DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 
 
-# Modern TRL library prefers a formatting function over 'dataset_text_field'.
 def formatting_func(example):
     return example["text"]
 
 
 def train():
-    """
-    Loads the base model, the dataset, and runs the fine-tuning process with LoRA + 4bit quantization.
-    """
     print(
         f"Loading base model '{BASE_MODEL}' with 4-bit quantization for GPU training..."
     )
@@ -38,7 +35,7 @@ def train():
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,  # 更安全，显存更省
+        bnb_4bit_compute_dtype=torch.bfloat16,
     )
 
     model = AutoModelForCausalLM.from_pretrained(
@@ -48,7 +45,10 @@ def train():
         trust_remote_code=True,
     )
 
-    # 启用 gradient checkpointing 节省显存
+    # 关闭 KV cache，避免和 gradient_checkpointing 冲突
+    model.config.use_cache = False
+
+    # 启用 gradient checkpointing
     model.gradient_checkpointing_enable()
 
     print("Configuring model for LoRA (Parameter-Efficient Fine-Tuning)...")
@@ -69,19 +69,24 @@ def train():
         task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
+
+    # 确保 LoRA 参数是可训练的
+    for name, param in model.named_parameters():
+        if "lora" in name:
+            param.requires_grad = True
+
     model.print_trainable_parameters()
 
     print(f"Loading dataset from {DATASET_FILE}...")
     dataset = load_dataset("json", data_files=DATASET_FILE, split="train")
 
-    # --- Training config ---
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
         formatting_func=formatting_func,
         args=TrainingArguments(
-            per_device_train_batch_size=1,  # 改为1，避免OOM
-            gradient_accumulation_steps=32,  # 增大学习等效batch
+            per_device_train_batch_size=1,
+            gradient_accumulation_steps=32,
             warmup_steps=2,
             num_train_epochs=3,
             learning_rate=2e-4,
@@ -105,7 +110,6 @@ def train():
     print(
         f"\n\033[92mModel saved in Hugging Face format at '{OUTPUT_MODEL_NAME}'!\033[0m"
     )
-    print("You will need to convert this model to GGUF format manually for LM Studio.")
 
 
 if __name__ == "__main__":

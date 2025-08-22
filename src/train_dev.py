@@ -6,7 +6,7 @@ from peft import LoraConfig, get_peft_model
 
 # --- Configuration ---
 BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-OUTPUT_MODEL_NAME = "hyperlane-qwen2.5-coder-1.5b-coder-finetuned-model"
+OUTPUT_MODEL_NAME = "hyperlane-qwen2.5-coder-1.5b-finetuned"
 DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 

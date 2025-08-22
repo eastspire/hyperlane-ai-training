@@ -30,10 +30,24 @@ def train():
 
     formatting_func.tokenizer = tokenizer
 
+    # 自动判断 bf16 是否可用
+    use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+    use_fp16 = torch.cuda.is_available() and torch.cuda.is_fp16_supported()
+
+    if use_bf16:
+        torch_dtype = torch.bfloat16
+        print("Using bf16 precision for training.")
+    elif use_fp16:
+        torch_dtype = torch.float16
+        print("Using fp16 precision for training.")
+    else:
+        torch_dtype = torch.float32
+        print("Using fp32 precision for training (GPU bf16/fp16 not supported).")
+
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
         device_map="auto",
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch_dtype,
         trust_remote_code=True,
     )
 
@@ -55,7 +69,8 @@ def train():
             num_train_epochs=3,
             learning_rate=2e-4,
             logging_steps=1,
-            bf16=True,
+            bf16=use_bf16,
+            fp16=use_fp16 and not use_bf16,
             tf32=False,
             optim="adamw_torch",
             report_to="none",

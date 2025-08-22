@@ -11,25 +11,35 @@ DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 
 
-# Modern TRL library prefers a formatting function over 'dataset_text_field'.
-# This function simply takes a sample from the dataset and returns the text.
 def formatting_func(example):
+    """Simply return the text field from each dataset example."""
     return example["text"]
 
 
 def train():
-    """
-    Loads the base model, the dataset, and runs the fine-tuning process.
-    """
     print(f"Loading base model '{BASE_MODEL}' for auto training...")
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # Automatically select precision
+    use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+    use_fp16 = torch.cuda.is_available() and torch.cuda.is_fp16_supported()
+
+    if use_bf16:
+        torch_dtype = torch.bfloat16
+        print("Using bf16 precision for training.")
+    elif use_fp16:
+        torch_dtype = torch.float16
+        print("Using fp16 precision for training.")
+    else:
+        torch_dtype = torch.float32
+        print("Using fp32 precision for training (GPU bf16/fp16 not supported).")
+
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
         device_map="auto",
-        torch_dtype=torch.float16,
+        torch_dtype=torch_dtype,
         trust_remote_code=True,
     )
 
@@ -48,21 +58,22 @@ def train():
     print(f"Loading dataset from {DATASET_FILE}...")
     dataset = load_dataset("json", data_files=DATASET_FILE, split="train")
 
-    # Configure the trainer using the modern API with formatting_func
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        formatting_func=formatting_func,  # Use the new formatting_func
+        formatting_func=formatting_func,
         args=TrainingArguments(
             per_device_train_batch_size=1,
-            gradient_accumulation_steps=1,  # Dev-specific
-            max_steps=10,  # Dev-specific: overrides num_train_epochs
+            gradient_accumulation_steps=1,
+            max_steps=10,
             learning_rate=2e-4,
             logging_steps=1,
+            bf16=use_bf16,
+            fp16=use_fp16 and not use_bf16,
             optim="adamw_torch",
-            report_to="none",  # Disable wandb integration
+            report_to="none",
             output_dir="./outputs",
-            dataloader_pin_memory=False,  # Disable for CPU-only environments
+            dataloader_pin_memory=False,
         ),
     )
 

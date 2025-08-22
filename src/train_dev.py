@@ -4,27 +4,24 @@ from datasets import load_dataset
 from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
 
-# --- Configuration ---
 BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 OUTPUT_MODEL_NAME = "hyperlane-qwen2.5-coder-1.5b-finetuned"
 DATASET_FILE = "./training_data.jsonl"
-# --- End Configuration ---
 
 
 def formatting_func(example):
-    """Simply return the text field from each dataset example."""
     return example["text"]
 
 
 def train():
-    print(f"Loading base model '{BASE_MODEL}' for auto training...")
+    print(f"Loading base model '{BASE_MODEL}' for GPU training...")
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Automatically select precision
+    # Auto precision selection
     use_bf16 = torch.cuda.is_available() and torch.cuda.is_bf16_supported()
-    use_fp16 = torch.cuda.is_available() and torch.cuda.is_fp16_supported()
+    use_fp16 = torch.cuda.is_available() and not use_bf16
 
     if use_bf16:
         torch_dtype = torch.bfloat16
@@ -34,7 +31,7 @@ def train():
         print("Using fp16 precision for training.")
     else:
         torch_dtype = torch.float32
-        print("Using fp32 precision for training (GPU bf16/fp16 not supported).")
+        print("Using fp32 precision for training (GPU not available).")
 
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
@@ -69,7 +66,7 @@ def train():
             learning_rate=2e-4,
             logging_steps=1,
             bf16=use_bf16,
-            fp16=use_fp16 and not use_bf16,
+            fp16=use_fp16,
             optim="adamw_torch",
             report_to="none",
             output_dir="./outputs",

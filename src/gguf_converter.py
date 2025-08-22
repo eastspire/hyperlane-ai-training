@@ -8,7 +8,9 @@ LLAMA_CPP_PATH = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "llama.cpp")
 )
 MODEL_TO_CONVERT_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "hyperlane-qwen2-merged-model")
+    os.path.join(
+        os.path.dirname(__file__), "..", "hyperlane-qwen2.5-coder-1.5b-merged-model"
+    )
 )
 OUTPUT_GGUF_FILE = os.path.join(
     "outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"
@@ -83,11 +85,15 @@ def main():
     # Use the updated, older conversion script that exists in the user's directory
     convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf_update.py")
     if not os.path.exists(convert_script_path):
-        print(f"Error: The conversion script 'convert_hf_to_gguf_update.py' was not found in '{LLAMA_CPP_PATH}'.")
+        print(
+            f"Error: The conversion script 'convert_hf_to_gguf_update.py' was not found in '{LLAMA_CPP_PATH}'."
+        )
         # Fallback to the non-updated version if it exists
         convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf.py")
         if not os.path.exists(convert_script_path):
-            print(f"Error: Could not find a suitable conversion script in '{LLAMA_CPP_PATH}'.")
+            print(
+                f"Error: Could not find a suitable conversion script in '{LLAMA_CPP_PATH}'."
+            )
             sys.exit(1)
 
     # Output the file directly into the ai-training directory for easier access
@@ -109,7 +115,6 @@ def main():
 
     print(f"\n\n\033[92mConversion complete! Your GGUF file is ready at:\033[0m")
     print(output_file_path)
-
 
 
 if __name__ == "__main__":

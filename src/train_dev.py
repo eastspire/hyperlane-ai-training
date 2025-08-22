@@ -5,8 +5,8 @@ from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
 
 # --- Configuration ---
-BASE_MODEL = "Qwen/Qwen2-1.5B-Instruct"
-OUTPUT_MODEL_NAME = "hyperlane-qwen2-finetuned-model"
+BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
+OUTPUT_MODEL_NAME = "hyperlane-qwen2.5-coder-1.5b-coder-finetuned-model"
 DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 

@@ -5,11 +5,11 @@ import os
 
 # --- Configuration ---
 # The base model ID, must be the same as in the training script.
-BASE_MODEL_ID = "Qwen/Qwen2-1.5B-Instruct"
+BASE_MODEL_ID = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
 # The path to your fine-tuned LoRA adapters.
-FINETUNED_MODEL_PATH = "hyperlane-qwen2-finetuned-model"
+FINETUNED_MODEL_PATH = "hyperlane-qwen2.5-coder-1.5b-finetuned-model"
 # The path where the final, merged model will be saved.
-MERGED_MODEL_SAVE_PATH = "hyperlane-qwen2-merged-model"
+MERGED_MODEL_SAVE_PATH = "hyperlane-qwen2.5-coder-1.5b-merged-model"
 # --- End Configuration ---
 
 

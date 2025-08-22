@@ -96,6 +96,6 @@ The `run_all.py` script executes the following steps in order:
 
 Upon successful completion, you will find the final, ready-to-use model file in this directory:
 
-- **`hyperlane-qwen2.5-coder-1.5b-instruct.gguf`**
+- **`hyperlane-qwen2.5-coder-1.5b-coder-1.5b-instruct.gguf`**
 
 Simply copy this file to your LM Studio models folder, and you can begin chatting with your custom-trained AI assistant.

@@ -82,10 +82,12 @@ def main():
 
     convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert.py")
     if not os.path.exists(convert_script_path):
-        print(f"Error: The conversion script 'convert.py' was not found in '{LLAMA_CPP_PATH}'.")
+        print(
+            f"Error: The conversion script 'convert.py' was not found in '{LLAMA_CPP_PATH}'."
+        )
         print("Please ensure you have the latest version of llama.cpp.")
         sys.exit(1)
-        
+
     # Output the file directly into the ai-training directory for easier access
     output_file_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", OUTPUT_GGUF_FILE)
@@ -107,7 +109,6 @@ def main():
 
     print(f"\n\n\033[92mConversion complete! Your GGUF file is ready at:\033[0m")
     print(output_file_path)
-
 
 
 if __name__ == "__main__":

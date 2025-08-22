@@ -63,6 +63,7 @@ def train():
             optim="adamw_torch",
             report_to="none",  # Disable wandb integration
             output_dir="./outputs",
+            dataloader_pin_memory=False,  # Disable for CPU-only environments
         ),
     )
 

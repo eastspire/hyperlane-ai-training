@@ -20,7 +20,7 @@ def merge_model():
     print(f"Loading base model: {BASE_MODEL_ID}")
     base_model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL_ID,
-        torch_dtype=torch.float32,
+        torch_dtype=torch.float16,
         device_map="auto",
         trust_remote_code=True,
     )

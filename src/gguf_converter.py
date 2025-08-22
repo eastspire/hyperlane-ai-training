@@ -3,21 +3,20 @@ import subprocess
 import sys
 
 # --- Configuration ---
-# Path to the llama.cpp repository, assuming it's inside the current project directory
-LLAMA_CPP_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "llama.cpp")
-)
-MODEL_TO_CONVERT_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "hyperlane-qwen2.5-coder-1.5b-merged")
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+LLAMA_CPP_PATH = os.path.join(PROJECT_ROOT, "llama.cpp")
+MODEL_TO_CONVERT_PATH = os.path.join(
+    PROJECT_ROOT, "hyperlane-qwen2.5-coder-1.5b-merged"
 )
 OUTPUT_GGUF_FILE = os.path.join(
-    "outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"
+    PROJECT_ROOT, "outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"
 )
+GIT_REPO = "https://github.com/ggml-org/llama.cpp.git"
 
 
-def run_command(command, cwd):
+def run_command(command, cwd=None):
     """Runs a command and checks for errors."""
-    print(f"\n--- Running command: `{' '.join(command)}` in `{cwd}` ---")
+    print(f"\n--- Running command: `{' '.join(command)}` in `{cwd or os.getcwd()}` ---")
     try:
         process = subprocess.Popen(
             command,
@@ -48,21 +47,22 @@ def run_command(command, cwd):
         sys.exit(1)
 
 
+def ensure_llama_cpp():
+    """Clone llama.cpp if it doesn't exist."""
+    if not os.path.isdir(LLAMA_CPP_PATH):
+        print(f"llama.cpp not found at '{LLAMA_CPP_PATH}'. Cloning repository...")
+        run_command(["git", "clone", GIT_REPO, LLAMA_CPP_PATH], cwd=PROJECT_ROOT)
+    else:
+        print(f"Found existing llama.cpp at: {LLAMA_CPP_PATH}")
+
+
 def main():
-    # Check if the required directories exist
+    ensure_llama_cpp()
+
     if not os.path.isdir(MODEL_TO_CONVERT_PATH):
         print(f"Error: Merged model directory not found at '{MODEL_TO_CONVERT_PATH}'")
-        print("Please run 'python merge_and_export.py' first.")
+        print("Please run 'merge_and_export.py' first.")
         sys.exit(1)
-
-    if not os.path.isdir(LLAMA_CPP_PATH):
-        print(f"Error: llama.cpp directory not found at '{LLAMA_CPP_PATH}'")
-        print(
-            "Please ensure the llama.cpp folder is inside the 'ai-training' directory."
-        )
-        sys.exit(1)
-
-    print(f"Found llama.cpp at: {LLAMA_CPP_PATH}")
 
     python_executable = sys.executable
     print("Installing/checking minimal dependencies for GGUF conversion...")
@@ -80,7 +80,6 @@ def main():
         LLAMA_CPP_PATH,
     )
 
-    # Use the primary conversion script.
     convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf.py")
     if not os.path.exists(convert_script_path):
         print(
@@ -88,25 +87,20 @@ def main():
         )
         sys.exit(1)
 
-    # Output the file directly into the ai-training directory for easier access
-    output_file_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", OUTPUT_GGUF_FILE)
-    )
-    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    os.makedirs(os.path.dirname(OUTPUT_GGUF_FILE), exist_ok=True)
 
     print("Starting GGUF conversion...")
-    # Older scripts do not support the --outtype argument
     conversion_command = [
         python_executable,
         convert_script_path,
         MODEL_TO_CONVERT_PATH,
         "--outfile",
-        output_file_path,
+        OUTPUT_GGUF_FILE,
     ]
     run_command(conversion_command, LLAMA_CPP_PATH)
 
     print(f"\n\n\033[92mConversion complete! Your GGUF file is ready at:\033[0m")
-    print(output_file_path)
+    print(OUTPUT_GGUF_FILE)
 
 
 if __name__ == "__main__":

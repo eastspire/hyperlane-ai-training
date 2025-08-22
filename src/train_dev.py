@@ -68,7 +68,7 @@ def train():
 
     print("\n\033[94mStarting model training on auto.\033[0m")
     trainer.train()
-    print("\n\032[92mTraining complete!\033[0m")
+    print("\n\033[92mTraining complete!\033[0m")
 
     print(f"Saving fine-tuned model to '{OUTPUT_MODEL_NAME}'...")
     model.save_pretrained(OUTPUT_MODEL_NAME)

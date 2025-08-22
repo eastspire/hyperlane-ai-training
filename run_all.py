@@ -36,33 +36,8 @@ def run_step(script_name, logs_dir):
 
 def main():
     """Runs the entire training and conversion pipeline."""
-    # --- Cleanup old files ---
-    print("--- Deleting old training files and outputs ---")
 
-    # Delete the outputs directory
-    if os.path.isdir("outputs"):
-        shutil.rmtree("outputs")
-        print("Deleted directory: outputs")
-
-    # Delete the old logs directory in CWD
-    if os.path.isdir("logs"):
-        shutil.rmtree("logs")
-        print("Deleted directory: logs")
-
-    # Use a temporary directory for logs and clean it up
-    temp_dir = tempfile.gettempdir()
-    logs_dir = os.path.join(temp_dir, "training_logs")
-    if os.path.isdir(logs_dir):
-        shutil.rmtree(logs_dir)
-        print(f"Deleted directory: {logs_dir}")
-
-    # Delete the training_data.jsonl file
-    training_data_path = "training_data.jsonl"
-    if os.path.exists(training_data_path):
-        os.remove(training_data_path)
-        print(f"Deleted file: {training_data_path}")
-
-    print("--- Cleanup complete ---")
+    logs_dir = "logs"
 
     # Create the new logs directory
     if not os.path.isdir(logs_dir):

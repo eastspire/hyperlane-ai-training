@@ -23,6 +23,7 @@ def run_step(script_name, logs_dir):
             errors="replace",
         )
         for line in iter(process.stdout.readline, ""):
+            print(line, end="")
             log_file.write(line)
         process.wait()
     if process.returncode != 0:

@@ -14,14 +14,12 @@ OUTPUT_FILE = "./training_data.jsonl"
 BASE_MODEL_ID = "Qwen/Qwen2-1.5B-Instruct"
 
 QA_GENERATION_PROMPT = """
-Based on the following text from a technical document or source code file, generate exactly two high-quality, distinct question-and-answer pairs. The questions should be technical and specific, something a developer might ask. The answers must be found directly in the text. Provide the output as a JSON list of objects, where each object has a "question" and "answer" key.
+Based on the following text from a technical document or source code file, generate exactly two high-quality, distinct question-and-answer pairs. The questions should be technical and specific, something a developer might ask. The answers must be found directly in the text. Provide the output as a valid JSON list of objects, where each object has a "question" and "answer" key.
 
----
-Text ---
+--- Text ---
 {document_text}
 
----
-JSON Output ---
+--- JSON Output ---
 """
 
 

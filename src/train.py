@@ -1,5 +1,10 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    BitsAndBytesConfig,
+)
 from datasets import load_dataset
 from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
@@ -12,32 +17,53 @@ DATASET_FILE = "./training_data.jsonl"
 
 
 # Modern TRL library prefers a formatting function over 'dataset_text_field'.
-# This function simply takes a sample from the dataset and returns the text.
 def formatting_func(example):
     return example["text"]
 
 
 def train():
     """
-    Loads the base model, the dataset, and runs the fine-tuning process.
+    Loads the base model, the dataset, and runs the fine-tuning process with LoRA + 4bit quantization.
     """
-    print(f"Loading base model '{BASE_MODEL}' for GPU training...")
+    print(
+        f"Loading base model '{BASE_MODEL}' with 4-bit quantization for GPU training..."
+    )
+
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    # --- 4-bit quantization config ---
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,  # 更安全，显存更省
+    )
+
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
         device_map="auto",
-        torch_dtype=torch.float16,
+        quantization_config=bnb_config,
         trust_remote_code=True,
     )
+
+    # 启用 gradient checkpointing 节省显存
+    model.gradient_checkpointing_enable()
 
     print("Configuring model for LoRA (Parameter-Efficient Fine-Tuning)...")
     lora_config = LoraConfig(
         r=64,
         lora_alpha=128,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
@@ -48,22 +74,22 @@ def train():
     print(f"Loading dataset from {DATASET_FILE}...")
     dataset = load_dataset("json", data_files=DATASET_FILE, split="train")
 
-    # Configure the trainer using the modern API with formatting_func
+    # --- Training config ---
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        formatting_func=formatting_func,  # Use the new formatting_func
+        formatting_func=formatting_func,
         args=TrainingArguments(
-            per_device_train_batch_size=8,
-            gradient_accumulation_steps=4,
+            per_device_train_batch_size=1,  # 改为1，避免OOM
+            gradient_accumulation_steps=32,  # 增大学习等效batch
             warmup_steps=2,
-            num_train_epochs=3,  # Increased epochs for better learning
+            num_train_epochs=3,
             learning_rate=2e-4,
             logging_steps=1,
             bf16=True,
             tf32=False,
             optim="adamw_torch",
-            report_to="none",  # Disable wandb integration
+            report_to="none",
             output_dir="./outputs",
             dataloader_pin_memory=True,
         ),

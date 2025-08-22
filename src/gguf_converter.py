@@ -80,35 +80,36 @@ def main():
         LLAMA_CPP_PATH,
     )
 
-    convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert.py")
+    # Use the updated, older conversion script that exists in the user's directory
+    convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf_update.py")
     if not os.path.exists(convert_script_path):
-        print(
-            f"Error: The conversion script 'convert.py' was not found in '{LLAMA_CPP_PATH}'."
-        )
-        print("Please ensure you have the latest version of llama.cpp.")
-        sys.exit(1)
+        print(f"Error: The conversion script 'convert_hf_to_gguf_update.py' was not found in '{LLAMA_CPP_PATH}'.")
+        # Fallback to the non-updated version if it exists
+        convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf.py")
+        if not os.path.exists(convert_script_path):
+            print(f"Error: Could not find a suitable conversion script in '{LLAMA_CPP_PATH}'.")
+            sys.exit(1)
 
     # Output the file directly into the ai-training directory for easier access
     output_file_path = os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", OUTPUT_GGUF_FILE)
     )
     os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
-    python_executable = sys.executable
 
     print("Starting GGUF conversion...")
+    # Older scripts do not support the --outtype argument
     conversion_command = [
         python_executable,
         convert_script_path,
         MODEL_TO_CONVERT_PATH,
         "--outfile",
         output_file_path,
-        "--outtype",
-        "f16",
     ]
     run_command(conversion_command, LLAMA_CPP_PATH)
 
     print(f"\n\n\033[92mConversion complete! Your GGUF file is ready at:\033[0m")
     print(output_file_path)
+
 
 
 if __name__ == "__main__":

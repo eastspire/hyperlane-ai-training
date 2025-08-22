@@ -1,6 +1,8 @@
 import os
 import subprocess
 import requests
+import concurrent.futures
+from functools import partial
 
 # --- Configuration ---
 # The main directory to hold all our training source files
@@ -12,26 +14,41 @@ PRIMARY_REPO = {
 }
 # The organizations from which to clone all public repositories
 ORGS_TO_CLONE = ["crates-dev", "hyperlane-dev"]
+# Number of threads to use for cloning/pulling
+MAX_WORKERS = 10
 
 
-def run_command(command, cwd="."):
+def run_command(command, cwd=".", quiet=False):
     """Runs a command and checks for errors."""
-    print(f"\n--- Running command: {' '.join(command)} in {cwd} ---")
-    process = subprocess.Popen(
-        command,
-        cwd=cwd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        print(f"--- ERROR ---\n{stderr}")
+    if not quiet:
+        print(f"--- Running: {" ".join(command)} in {cwd}")
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        stdout, stderr = process.communicate(timeout=300)  # 5-minute timeout
+        if process.returncode != 0:
+            # Print error only if it fails to keep logs clean
+            print(f"--- ERROR running {" ".join(command)} in {cwd} ---\n{stderr.strip()}")
+            return False
+        if not quiet:
+            print(f"--- SUCCESS: {" ".join(command)} in {cwd}")
+        return True
+    except subprocess.TimeoutExpired:
+        print(f"--- TIMEOUT ERROR running {" ".join(command)} in {cwd} ---")
+        # process.kill() will be handled by Popen's context manager if we use it,
+        # but here we ensure it's terminated.
+        process.kill()
         return False
-    print("--- SUCCESS ---")
-    return True
+    except Exception as e:
+        print(f"--- EXCEPTION in run_command: {e} ---")
+        return False
 
 
 def get_repo_urls_from_org(org_name):
@@ -42,7 +59,7 @@ def get_repo_urls_from_org(org_name):
     while True:
         api_url = f"https://api.github.com/orgs/{org_name}/repos?type=public&page={page}&per_page=100"
         try:
-            response = requests.get(api_url)
+            response = requests.get(api_url, timeout=10)
             response.raise_for_status()
             data = response.json()
             if not data or not isinstance(data, list):
@@ -58,42 +75,57 @@ def get_repo_urls_from_org(org_name):
     return repo_urls
 
 
+def process_repo(repo_url, *, org_dir):
+    """Clones or pulls a single repository."""
+    repo_name = repo_url.split("/")[-1].replace(".git", "")
+    repo_path = os.path.join(org_dir, repo_name)
+    if os.path.exists(repo_path):
+        # print(f"Pulling latest changes for {repo_name}...")
+        run_command(["git", "pull"], cwd=repo_path, quiet=True)
+    else:
+        # print(f"Cloning {repo_name}...")
+        run_command(["git", "clone", "--depth", "1", repo_url, repo_path], quiet=True)
+
+
 def main():
     """Clones all necessary repositories into a structured directory."""
     if not os.path.isdir(SOURCES_DIR):
         os.makedirs(SOURCES_DIR)
 
-    # 1. Clone the primary repository directly into the sources dir
+    # 1. Clone the primary repository directly into the sources dir (sequentially)
     repo_path = os.path.join(SOURCES_DIR, PRIMARY_REPO["name"])
+    print(f"\n--- Processing primary repository: {PRIMARY_REPO['name']} ---")
     if os.path.exists(repo_path):
-        print(f"Pulling latest changes for {PRIMARY_REPO['name']}...")
         run_command(["git", "pull"], cwd=repo_path)
     else:
-        print(f"Cloning {PRIMARY_REPO['name']}...")
         run_command(["git", "clone", PRIMARY_REPO["url"], repo_path])
 
-    # 2. Clone all repos from the specified organizations into subdirectories
+    # 2. Clone all repos from the specified organizations in parallel
     for org in ORGS_TO_CLONE:
         org_dir = os.path.join(SOURCES_DIR, org)
         if not os.path.isdir(org_dir):
             os.makedirs(org_dir)
 
         repo_urls = get_repo_urls_from_org(org)
-        print(f"\nStarting to process {len(repo_urls)} repositories for {org}...")
-        for repo_url in repo_urls:
-            repo_name = repo_url.split("/")[-1].replace(".git", "")
-            repo_path = os.path.join(org_dir, repo_name)
-            if os.path.exists(repo_path):
-                print(
-                    f"Repository {repo_name} already exists. Pulling latest changes..."
-                )
-                run_command(["git", "pull"], cwd=repo_path)
-            else:
-                print(f"Cloning {repo_name} into {org} folder...")
-                run_command(["git", "clone", repo_url, repo_path])
+        # Use functools.partial to create a function with org_dir already set
+        task_fn = partial(process_repo, org_dir=org_dir)
+
+        if repo_urls:
+            print(
+                f"\n--- Starting parallel processing for {len(repo_urls)} repositories in {org} ---"
+            )
+            # Use a with statement to ensure threads are cleaned up promptly.
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=MAX_WORKERS
+            ) as executor:
+                # Using map for cleaner execution and to apply the function to each item.
+                # The results are implicitly handled.
+                list(
+                    executor.map(task_fn, repo_urls)
+                )  # list() to ensure all tasks complete
 
     print(
-        "\n\033[92mData acquisition complete! All repositories are organized in the '{SOURCES_DIR}' directory.\033[0m"
+        f"\n\033[92mData acquisition complete! All repositories are up-to-date in the '{SOURCES_DIR}' directory.\033[0m"
     )
 
 

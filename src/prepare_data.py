@@ -7,18 +7,16 @@ from tqdm import tqdm
 SOURCE_PATH = "./training_sources"
 FILE_PATTERNS = ["**/*.md", "**/*.rs", "**/*.toml", "**/*.py", "**/*.js", "**/*.ts"]
 OUTPUT_FILE = "./training_data.jsonl"
-# The CHUNK_SIZE determines the maximum sequence length for the model.
-# All data from all files is processed, just split into these chunks.
-CHUNK_SIZE = 88888888
 # --- End Configuration ---
 
 
 def create_direct_text_training_data():
     """
-    Processes all specified files, chunks their content, and saves them directly
-    to a JSONL file for training. This is much faster and uses all data.
+    Processes all specified files and saves them directly
+    to a JSONL file for training. Each file becomes one JSONL entry.
     """
     print("Starting direct text data preparation...")
+
     all_files = []
     print(f"Searching for files in: {os.path.abspath(SOURCE_PATH)}")
     for pattern in FILE_PATTERNS:
@@ -33,11 +31,7 @@ def create_direct_text_training_data():
                     content = in_file.read()
                     if not content.strip():  # Skip empty files
                         continue
-                    # Split content into chunks
-                    for i in range(0, len(content), CHUNK_SIZE):
-                        chunk = content[i : i + CHUNK_SIZE]
-                        # Write each chunk as a separate entry in the JSONL file
-                        f.write(json.dumps({"text": chunk}) + "\n")
+                    f.write(json.dumps({"text": content}) + "\n")
             except Exception as e:
                 print(f"Skipping file {file_path} due to error: {e}")
                 continue

@@ -1,14 +1,7 @@
 import torch
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    TrainingArguments,
-    BitsAndBytesConfig,
-)
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from datasets import load_dataset
 from trl import SFTTrainer
-from peft import LoraConfig, get_peft_model
-
 
 # --- Configuration ---
 BASE_MODEL = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
@@ -17,76 +10,56 @@ DATASET_FILE = "./training_data.jsonl"
 # --- End Configuration ---
 
 
-def formatting_func(example):
-    return example["text"]
+def formatting_func(example, tokenizer, max_length=1024):
+    """
+    将文本转为模型输入，并生成 labels。
+    """
+    tokens = tokenizer(
+        example["text"],
+        truncation=True,
+        padding="max_length",
+        max_length=max_length,
+    )
+    tokens["labels"] = tokens["input_ids"].copy()  # 自回归任务的 labels
+    return tokens
 
 
 def train():
-    print(
-        f"Loading base model '{BASE_MODEL}' with 4-bit quantization for GPU training..."
-    )
+    print(f"Loading base model '{BASE_MODEL}' for GPU training...")
 
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, trust_remote_code=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # --- 4-bit quantization config ---
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
-
     model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL,
         device_map="auto",
-        quantization_config=bnb_config,
+        torch_dtype=torch.bfloat16,  # bf16 更省显存
         trust_remote_code=True,
     )
 
-    # 关闭 KV cache，避免和 gradient_checkpointing 冲突
+    # 关闭 KV cache 避免和 gradient checkpoint 冲突
     model.config.use_cache = False
 
-    # 启用 gradient checkpointing
+    # 启用 gradient checkpointing 节省显存
     model.gradient_checkpointing_enable()
-
-    print("Configuring model for LoRA (Parameter-Efficient Fine-Tuning)...")
-    lora_config = LoraConfig(
-        r=64,
-        lora_alpha=128,
-        target_modules=[
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",
-            "gate_proj",
-            "up_proj",
-            "down_proj",
-        ],
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
-    model = get_peft_model(model, lora_config)
-
-    # 确保 LoRA 参数是可训练的
-    for name, param in model.named_parameters():
-        if "lora" in name:
-            param.requires_grad = True
-
-    model.print_trainable_parameters()
 
     print(f"Loading dataset from {DATASET_FILE}...")
     dataset = load_dataset("json", data_files=DATASET_FILE, split="train")
 
+    # 对 dataset 做 tokenization
+    dataset = dataset.map(
+        lambda x: formatting_func(x, tokenizer),
+        batched=False,
+    )
+
     trainer = SFTTrainer(
         model=model,
         train_dataset=dataset,
-        formatting_func=formatting_func,
+        tokenizer=tokenizer,
         args=TrainingArguments(
             per_device_train_batch_size=1,
-            gradient_accumulation_steps=32,
+            gradient_accumulation_steps=4,
             warmup_steps=2,
             num_train_epochs=3,
             learning_rate=2e-4,

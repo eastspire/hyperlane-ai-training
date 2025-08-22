@@ -37,7 +37,9 @@ def run_step(script_name, logs_dir):
 def main():
     """Runs the entire training and conversion pipeline."""
 
-    logs_dir = "logs"
+    # Get the directory where the script is located and create a logs directory there
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    logs_dir = os.path.join(script_dir, "logs")
 
     # Create the new logs directory
     if not os.path.isdir(logs_dir):

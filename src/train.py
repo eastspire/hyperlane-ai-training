@@ -35,9 +35,9 @@ def train():
 
     print("Configuring model for LoRA (Parameter-Efficient Fine-Tuning)...")
     lora_config = LoraConfig(
-        r=16,
-        lora_alpha=32,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+        r=64,
+        lora_alpha=128,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
@@ -54,16 +54,18 @@ def train():
         train_dataset=dataset,
         formatting_func=formatting_func,  # Use the new formatting_func
         args=TrainingArguments(
-            per_device_train_batch_size=1,
+            per_device_train_batch_size=8,
             gradient_accumulation_steps=4,
             warmup_steps=2,
             num_train_epochs=3,  # Increased epochs for better learning
             learning_rate=2e-4,
             logging_steps=1,
+            bf16=True,
+            tf32=True,
             optim="adamw_torch",
             report_to="none",  # Disable wandb integration
             output_dir="./outputs",
-            dataloader_pin_memory=False,  # Disable for CPU-only environments
+            dataloader_pin_memory=True,
         ),
     )
 

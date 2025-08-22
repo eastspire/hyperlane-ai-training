@@ -80,19 +80,13 @@ def main():
         LLAMA_CPP_PATH,
     )
 
-    # Use the updated, older conversion script that exists in the user's directory
-    convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf_update.py")
+    # Use the primary conversion script.
+    convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf.py")
     if not os.path.exists(convert_script_path):
         print(
-            f"Error: The conversion script 'convert_hf_to_gguf_update.py' was not found in '{LLAMA_CPP_PATH}'."
+            f"Error: The conversion script 'convert_hf_to_gguf.py' was not found in '{LLAMA_CPP_PATH}'."
         )
-        # Fallback to the non-updated version if it exists
-        convert_script_path = os.path.join(LLAMA_CPP_PATH, "convert_hf_to_gguf.py")
-        if not os.path.exists(convert_script_path):
-            print(
-                f"Error: Could not find a suitable conversion script in '{LLAMA_CPP_PATH}'."
-            )
-            sys.exit(1)
+        sys.exit(1)
 
     # Output the file directly into the ai-training directory for easier access
     output_file_path = os.path.abspath(

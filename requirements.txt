@@ -1,12 +1,8 @@
-# Main deep learning framework - Pinned version to resolve conflict
-torch==2.7.1
-# Hugging Face libraries for models and training
+torch==2.7.0
+torchvision==0.22.0
 transformers
 datasets
 accelerate
-# Parameter-Efficient Fine-Tuning library
 peft
-# For SFTTrainer
 trl
-# For making API calls
 requests

@@ -12,7 +12,7 @@ MODEL_TO_CONVERT_PATH = os.path.join(
 OUTPUT_GGUF_FILE = os.path.join(
     PROJECT_ROOT, "outputs", "gguf", "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"
 )
-GIT_REPO = "https://github.com/ggml-org/llama.cpp.git"
+GIT_REPO = "https://github.com/eastspire/llama.cpp.git"
 
 
 def run_command(command, cwd=None, capture_output=False):

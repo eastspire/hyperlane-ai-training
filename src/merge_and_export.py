@@ -2,21 +2,51 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import os
+import re
 
 # --- Configuration ---
 # The base model ID, must be the same as in the training script.
 BASE_MODEL_ID = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
-# The path to your fine-tuned LoRA adapters.
-FINETUNED_MODEL_PATH = "./hyperlane-qwen2.5-coder-1.5b-finetuned"
 # The path where the final, merged model will be saved.
-MERGED_MODEL_SAVE_PATH = "./hyperlane-qwen2.5-coder-1.5b-merged"
+MERGED_MODEL_SAVE_PATH = "hyperlane-qwen2.5-coder-1.5b-merged"
 # --- End Configuration ---
+
+
+def get_latest_checkpoint_path(base_dir="outputs"):
+    """
+    Finds the path to the latest checkpoint directory within the base directory.
+    """
+    if not os.path.isdir(base_dir):
+        raise ValueError(f"Directory not found: {base_dir}")
+
+    checkpoint_dirs = [
+        d
+        for d in os.listdir(base_dir)
+        if d.startswith("checkpoint-") and os.path.isdir(os.path.join(base_dir, d))
+    ]
+
+    if not checkpoint_dirs:
+        raise ValueError(f"No checkpoint directories found in '{base_dir}'")
+
+    # Find the checkpoint with the highest number
+    latest_checkpoint_dir = max(
+        checkpoint_dirs, key=lambda d: int(re.search(r"checkpoint-(\d+)", d).group(1))
+    )
+
+    return os.path.join(base_dir, latest_checkpoint_dir)
 
 
 def merge_model():
     """
     Merges the LoRA adapters with the base model and saves the result.
     """
+    try:
+        FINETUNED_MODEL_PATH = get_latest_checkpoint_path()
+        print(f"Found latest checkpoint: {FINETUNED_MODEL_PATH}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+
     print(f"Loading base model: {BASE_MODEL_ID}")
     base_model = AutoModelForCausalLM.from_pretrained(
         BASE_MODEL_ID,

@@ -1,5 +1,5 @@
 # Main deep learning framework - Pinned version to resolve conflict
-torch==2.7.1
+torch
 # Hugging Face libraries for models and training
 transformers
 datasets

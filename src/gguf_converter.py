@@ -168,6 +168,29 @@ def check_model_files():
     return True
 
 
+def fix_mistral_import_issue():
+    """Try to fix the mistral_common import issue."""
+    print("Attempting to fix mistral_common import issue...")
+
+    try:
+        # Try to uninstall mistral_common if it's causing issues
+        success, _, _ = run_command(
+            [sys.executable, "-m", "pip", "uninstall", "-y", "mistral_common"],
+            capture_output=True,
+        )
+
+        if success:
+            print("✓ Uninstalled problematic mistral_common package")
+            return True
+        else:
+            print("Could not uninstall mistral_common package")
+
+    except Exception as e:
+        print(f"Error trying to fix mistral_common issue: {e}")
+
+    return False
+
+
 def find_conversion_script():
     """Find the correct conversion script."""
     possible_scripts = [
@@ -220,6 +243,9 @@ def check_python_dependencies():
         "gguf": "gguf",
     }
 
+    # Check for problematic packages that might cause issues
+    problematic_packages = {"mistral_common": "mistral_common"}
+
     missing_packages = []
 
     for package_name, import_name in required_packages.items():
@@ -229,6 +255,17 @@ def check_python_dependencies():
         except ImportError:
             print(f"✗ {package_name} is missing")
             missing_packages.append(package_name)
+
+    # Check for problematic packages
+    for package_name, import_name in problematic_packages.items():
+        try:
+            module = __import__(import_name)
+            version = getattr(module, "__version__", "unknown")
+            print(
+                f"⚠ {package_name} is installed (version: {version}) - may cause import issues"
+            )
+        except ImportError:
+            print(f"✓ {package_name} not installed (good - avoids import conflicts)")
 
     if missing_packages:
         print(f"\n⚠ Warning: Missing packages: {', '.join(missing_packages)}")
@@ -327,7 +364,7 @@ def main():
         except Exception as e:
             print(f"Warning: Could not remove existing file: {e}")
 
-    # Step 8: Run conversion
+    # Step 8: Try alternative conversion approaches if main script fails
     print(f"\n--- Starting GGUF conversion ---")
     print(f"Script: {convert_script_path}")
     print(f"Model: {MODEL_TO_CONVERT_PATH}")
@@ -335,24 +372,98 @@ def main():
     print("This may take several minutes depending on model size...")
 
     python_executable = sys.executable
-    conversion_command = [
-        python_executable,
-        convert_script_path,
-        MODEL_TO_CONVERT_PATH,
-        "--outfile",
-        OUTPUT_GGUF_FILE,
-        "--outtype",
-        "f16",  # Use f16 precision for smaller file size
+    conversion_success = False
+
+    # Try different conversion approaches
+    conversion_attempts = [
+        {
+            "name": "Standard conversion with f16",
+            "command": [
+                python_executable,
+                convert_script_path,
+                MODEL_TO_CONVERT_PATH,
+                "--outfile",
+                OUTPUT_GGUF_FILE,
+                "--outtype",
+                "f16",
+            ],
+        },
+        {
+            "name": "Conversion without outtype parameter",
+            "command": [
+                python_executable,
+                convert_script_path,
+                MODEL_TO_CONVERT_PATH,
+                "--outfile",
+                OUTPUT_GGUF_FILE,
+            ],
+        },
+        {
+            "name": "Conversion with q8_0 quantization",
+            "command": [
+                python_executable,
+                convert_script_path,
+                MODEL_TO_CONVERT_PATH,
+                "--outfile",
+                OUTPUT_GGUF_FILE,
+                "--outtype",
+                "q8_0",
+            ],
+        },
     ]
 
-    start_time = time.time()
-    success, stdout, stderr = run_command(conversion_command, LLAMA_CPP_PATH)
-    end_time = time.time()
+    for attempt in conversion_attempts:
+        print(f"\n--- Attempting: {attempt['name']} ---")
 
-    conversion_time = end_time - start_time
-    print(
-        f"Conversion took: {conversion_time:.1f} seconds ({conversion_time/60:.1f} minutes)"
-    )
+        start_time = time.time()
+        success, stdout, stderr = run_command(attempt["command"], LLAMA_CPP_PATH)
+        end_time = time.time()
+
+        conversion_time = end_time - start_time
+        print(
+            f"Attempt took: {conversion_time:.1f} seconds ({conversion_time/60:.1f} minutes)"
+        )
+
+        if success and os.path.exists(OUTPUT_GGUF_FILE):
+            conversion_success = True
+            print(f"✓ Conversion successful with: {attempt['name']}")
+            break
+        else:
+            print(f"✗ Failed: {attempt['name']}")
+            if (
+                "mistral_common" in str(stderr).lower()
+                or "tokenizerversion" in str(stderr).lower()
+            ):
+                print("Detected mistral_common import issue, trying to fix...")
+                if fix_mistral_import_issue():
+                    print("Retrying after fixing mistral_common...")
+                    start_time = time.time()
+                    success, stdout, stderr = run_command(
+                        attempt["command"], LLAMA_CPP_PATH
+                    )
+                    end_time = time.time()
+                    conversion_time = end_time - start_time
+
+                    if success and os.path.exists(OUTPUT_GGUF_FILE):
+                        conversion_success = True
+                        print(f"✓ Conversion successful after fixing mistral_common")
+                        break
+
+            # Clean up any partial files
+            if os.path.exists(OUTPUT_GGUF_FILE):
+                try:
+                    os.remove(OUTPUT_GGUF_FILE)
+                    print("Cleaned up partial output file")
+                except:
+                    pass
+
+    if not conversion_success:
+        print("\n--- All conversion attempts failed ---")
+        print("Common solutions:")
+        print("1. Try uninstalling mistral_common: pip uninstall mistral_common")
+        print("2. Update llama.cpp: cd llama.cpp && git pull")
+        print("3. Try different conversion script versions")
+        print("4. Check model file format compatibility")
 
     # Step 9: Verify output
     print(f"\n--- Verifying conversion results ---")
@@ -411,8 +522,12 @@ def main():
             )
             sys.exit(1)
 
-    print(f"\n\033[92m=== Conversion Complete! ===\033[0m")
-    if os.path.exists(OUTPUT_GGUF_FILE):
+    print(
+        f"\n\033[92m=== Conversion Complete! ===\033[0m"
+        if conversion_success
+        else f"\n\033[91m=== Conversion Failed ===\033[0m"
+    )
+    if os.path.exists(OUTPUT_GGUF_FILE) and conversion_success:
         print(f"Your GGUF model is ready at: {OUTPUT_GGUF_FILE}")
         print(f"\nNext steps:")
         print(f"1. Test the model with llama.cpp:")
@@ -420,7 +535,13 @@ def main():
         print(f'   ./main -m {OUTPUT_GGUF_FILE} -p "Hello, world!"')
         print(f"2. Use the model in your applications")
     else:
-        print("Please check the alternative locations mentioned above.")
+        print("Conversion failed. Please check the error messages above.")
+        print("\nTroubleshooting steps:")
+        print("1. Ensure all Python dependencies are correctly installed")
+        print("2. Try: pip uninstall mistral_common")
+        print("3. Update llama.cpp: cd llama.cpp && git pull")
+        print("4. Check model file integrity")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

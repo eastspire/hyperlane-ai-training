@@ -30,6 +30,12 @@ def run_command(command, cwd=None, capture_output=False):
                 errors="replace",
             )
             stdout, stderr = process.communicate()
+
+            # Print output for debugging
+            if stdout.strip():
+                print("STDOUT:", stdout)
+            if stderr.strip():
+                print("STDERR:", stderr)
         else:
             # For real-time output
             process = subprocess.Popen(
@@ -41,18 +47,13 @@ def run_command(command, cwd=None, capture_output=False):
             )
             stdout, stderr = process.communicate()
 
-        if capture_output:
-            print(stdout)
-            if stderr:
-                print("STDERR:", stderr)
-
         if process.returncode != 0:
-            print(f"--- ERROR ---")
+            print(f"--- COMMAND FAILED (exit code: {process.returncode}) ---")
             if capture_output and stderr:
-                print(stderr)
+                print("Error details:", stderr)
             return False, stdout, stderr
 
-        print("--- SUCCESS ---")
+        print("--- COMMAND SUCCESSFUL ---")
         return True, stdout, stderr
 
     except FileNotFoundError:
@@ -62,7 +63,7 @@ def run_command(command, cwd=None, capture_output=False):
         )
         return False, "", f"Command not found: {command[0]}"
     except Exception as e:
-        print("--- AN UNEXPECTED ERROR OCCURRED ---")
+        print("--- UNEXPECTED ERROR ---")
         print(str(e))
         return False, "", str(e)
 
@@ -75,9 +76,25 @@ def ensure_llama_cpp():
             ["git", "clone", GIT_REPO, LLAMA_CPP_PATH], cwd=PROJECT_ROOT
         )
         if not success:
+            print("Failed to clone llama.cpp repository.")
+            print("You can manually clone it using:")
+            print(f"  git clone {GIT_REPO} {LLAMA_CPP_PATH}")
             sys.exit(1)
+        print(f"Successfully cloned llama.cpp to: {LLAMA_CPP_PATH}")
     else:
         print(f"Found existing llama.cpp at: {LLAMA_CPP_PATH}")
+
+        # Check if it's a git repository and try to update
+        git_dir = os.path.join(LLAMA_CPP_PATH, ".git")
+        if os.path.exists(git_dir):
+            print("Attempting to update llama.cpp to latest version...")
+            success, _, _ = run_command(
+                ["git", "pull"], cwd=LLAMA_CPP_PATH, capture_output=True
+            )
+            if success:
+                print("llama.cpp updated successfully")
+            else:
+                print("Warning: Could not update llama.cpp, using existing version")
 
 
 def check_model_files():
@@ -88,32 +105,62 @@ def check_model_files():
         print(f"Error: Model directory not found: {MODEL_TO_CONVERT_PATH}")
         return False
 
+    # List all files in the model directory for debugging
+    try:
+        files_in_dir = os.listdir(MODEL_TO_CONVERT_PATH)
+        print(f"Files in model directory: {files_in_dir}")
+    except Exception as e:
+        print(f"Could not list files in model directory: {e}")
+        return False
+
     required_files = ["config.json"]
     model_files = ["model.safetensors", "pytorch_model.bin"]
+
+    # Also check for sharded model files
+    sharded_files = [
+        f for f in files_in_dir if f.startswith("model-") and f.endswith(".safetensors")
+    ]
 
     # Check required files
     for file in required_files:
         file_path = os.path.join(MODEL_TO_CONVERT_PATH, file)
         if os.path.exists(file_path):
             size = os.path.getsize(file_path)
-            print(f"✓ Found {file} ({size} bytes)")
+            print(f"✓ Found {file} ({size:,} bytes)")
         else:
             print(f"✗ Missing required file: {file}")
             return False
 
     # Check for model files
     model_file_found = False
+
+    # Check single model files first
     for file in model_files:
         file_path = os.path.join(MODEL_TO_CONVERT_PATH, file)
         if os.path.exists(file_path):
             size = os.path.getsize(file_path)
-            print(f"✓ Found {file} ({size} bytes)")
+            print(f"✓ Found {file} ({size:,} bytes)")
             model_file_found = True
             break
 
+    # Check for sharded model files
+    if not model_file_found and sharded_files:
+        total_size = 0
+        for file in sharded_files:
+            file_path = os.path.join(MODEL_TO_CONVERT_PATH, file)
+            size = os.path.getsize(file_path)
+            total_size += size
+            print(f"✓ Found {file} ({size:,} bytes)")
+
+        if sharded_files:
+            print(
+                f"✓ Found {len(sharded_files)} sharded model files (total: {total_size:,} bytes)"
+            )
+            model_file_found = True
+
     if not model_file_found:
         print(
-            "✗ No model files found (looking for model.safetensors or pytorch_model.bin)"
+            "✗ No model files found (looking for model.safetensors, pytorch_model.bin, or model-*.safetensors)"
         )
         return False
 
@@ -123,7 +170,12 @@ def check_model_files():
 
 def find_conversion_script():
     """Find the correct conversion script."""
-    possible_scripts = ["convert_hf_to_gguf.py", "convert.py", "convert-hf-to-gguf.py"]
+    possible_scripts = [
+        "convert_hf_to_gguf.py",
+        "convert.py",
+        "convert-hf-to-gguf.py",
+        "convert_hf_to_gguf_update.py",
+    ]
 
     for script in possible_scripts:
         script_path = os.path.join(LLAMA_CPP_PATH, script)
@@ -131,15 +183,66 @@ def find_conversion_script():
             print(f"Found conversion script: {script}")
             return script_path
 
-    print("Error: No conversion script found. Available files in llama.cpp:")
+    print("Error: No conversion script found. Available Python files in llama.cpp:")
     try:
+        python_files = []
         for file in os.listdir(LLAMA_CPP_PATH):
-            if file.endswith(".py") and "convert" in file.lower():
+            if file.endswith(".py"):
+                python_files.append(file)
+
+        if python_files:
+            for file in sorted(python_files):
                 print(f"  - {file}")
-    except:
-        print("  Could not list files")
+        else:
+            print("  No Python files found")
+
+        # Check if there are any convert scripts with different names
+        convert_files = [f for f in python_files if "convert" in f.lower()]
+        if convert_files:
+            print(f"\nConversion-related scripts found:")
+            for file in convert_files:
+                print(f"  - {file}")
+
+    except Exception as e:
+        print(f"  Could not list files: {e}")
 
     return None
+
+
+def check_python_dependencies():
+    """Check if required Python packages are available."""
+    print(f"\n--- Checking Python dependencies ---")
+
+    required_packages = {
+        "numpy": "numpy",
+        "torch": "torch",
+        "transformers": "transformers",
+        "gguf": "gguf",
+    }
+
+    missing_packages = []
+
+    for package_name, import_name in required_packages.items():
+        try:
+            __import__(import_name)
+            print(f"✓ {package_name} is available")
+        except ImportError:
+            print(f"✗ {package_name} is missing")
+            missing_packages.append(package_name)
+
+    if missing_packages:
+        print(f"\n⚠ Warning: Missing packages: {', '.join(missing_packages)}")
+        print("Please install them using:")
+        print(f"  pip install {' '.join(missing_packages)}")
+
+        user_input = input("\nDo you want to continue anyway? (y/N): ").lower().strip()
+        if user_input != "y" and user_input != "yes":
+            print("Aborting conversion.")
+            return False
+    else:
+        print("✓ All required packages are available")
+
+    return True
 
 
 def check_output_directory():
@@ -163,6 +266,27 @@ def check_output_directory():
         return False
 
 
+def estimate_conversion_time(model_path):
+    """Estimate conversion time based on model size."""
+    try:
+        total_size = 0
+        for root, dirs, files in os.walk(model_path):
+            for file in files:
+                if file.endswith((".safetensors", ".bin")):
+                    file_path = os.path.join(root, file)
+                    total_size += os.path.getsize(file_path)
+
+        size_gb = total_size / (1024**3)
+        # Rough estimate: ~1-2 minutes per GB
+        estimated_minutes = size_gb * 1.5
+
+        print(f"Model size: {size_gb:.2f} GB")
+        print(f"Estimated conversion time: {estimated_minutes:.1f} minutes")
+
+    except Exception as e:
+        print(f"Could not estimate conversion time: {e}")
+
+
 def main():
     print("=== GGUF Conversion Script ===")
     print(f"Project root: {PROJECT_ROOT}")
@@ -174,63 +298,63 @@ def main():
 
     # Step 2: Check model files
     if not check_model_files():
-        print("Please run 'merge_and_export.py' first to create the merged model.")
+        print("\nPlease ensure the merged model exists at the specified path.")
+        print("You may need to run the merge script first.")
         sys.exit(1)
 
-    # Step 3: Check output directory
+    # Step 3: Check Python dependencies
+    if not check_python_dependencies():
+        sys.exit(1)
+
+    # Step 4: Check output directory
     if not check_output_directory():
         sys.exit(1)
 
-    # Step 4: Find conversion script
+    # Step 5: Find conversion script
     convert_script_path = find_conversion_script()
     if not convert_script_path:
+        print("\nPlease check your llama.cpp installation and try again.")
         sys.exit(1)
 
-    # Step 5: Install dependencies
-    python_executable = sys.executable
-    print(f"\n--- Installing dependencies using: {python_executable} ---")
-    success, _, _ = run_command(
-        [
-            python_executable,
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "numpy",
-            "sentencepiece",
-            "torch",
-            "gguf",
-            "transformers",
-        ],
-        LLAMA_CPP_PATH,
-        capture_output=True,
-    )
-    if not success:
-        print("Warning: Failed to install some dependencies, but continuing...")
+    # Step 6: Estimate conversion time
+    estimate_conversion_time(MODEL_TO_CONVERT_PATH)
 
-    # Step 6: Remove existing output file if it exists
+    # Step 7: Remove existing output file if it exists
     if os.path.exists(OUTPUT_GGUF_FILE):
         print(f"Removing existing output file: {OUTPUT_GGUF_FILE}")
-        os.remove(OUTPUT_GGUF_FILE)
+        try:
+            os.remove(OUTPUT_GGUF_FILE)
+        except Exception as e:
+            print(f"Warning: Could not remove existing file: {e}")
 
-    # Step 7: Run conversion
+    # Step 8: Run conversion
     print(f"\n--- Starting GGUF conversion ---")
     print(f"Script: {convert_script_path}")
     print(f"Model: {MODEL_TO_CONVERT_PATH}")
     print(f"Output: {OUTPUT_GGUF_FILE}")
+    print("This may take several minutes depending on model size...")
 
+    python_executable = sys.executable
     conversion_command = [
         python_executable,
         convert_script_path,
         MODEL_TO_CONVERT_PATH,
         "--outfile",
         OUTPUT_GGUF_FILE,
+        "--outtype",
+        "f16",  # Use f16 precision for smaller file size
     ]
 
-    # Run with real-time output
+    start_time = time.time()
     success, stdout, stderr = run_command(conversion_command, LLAMA_CPP_PATH)
+    end_time = time.time()
 
-    # Step 8: Verify output
+    conversion_time = end_time - start_time
+    print(
+        f"Conversion took: {conversion_time:.1f} seconds ({conversion_time/60:.1f} minutes)"
+    )
+
+    # Step 9: Verify output
     print(f"\n--- Verifying conversion results ---")
 
     if os.path.exists(OUTPUT_GGUF_FILE):
@@ -239,9 +363,22 @@ def main():
         print(f"  Path: {OUTPUT_GGUF_FILE}")
         print(f"  Size: {file_size:,} bytes ({file_size / 1024 / 1024:.2f} MB)")
 
-        # Check if file size is reasonable (should be > 1MB for a real model)
-        if file_size < 1024 * 1024:  # Less than 1MB
+        # Check if file size is reasonable (should be > 10MB for a real model)
+        if file_size < 10 * 1024 * 1024:  # Less than 10MB
             print("⚠ Warning: File size seems too small for a model")
+        else:
+            print("✓ File size looks reasonable")
+
+        # Try to validate GGUF file format
+        try:
+            with open(OUTPUT_GGUF_FILE, "rb") as f:
+                magic = f.read(4)
+                if magic == b"GGUF":
+                    print("✓ GGUF magic bytes verified")
+                else:
+                    print(f"⚠ Warning: Unexpected magic bytes: {magic}")
+        except Exception as e:
+            print(f"Could not validate GGUF format: {e}")
 
     else:
         print(f"✗ GGUF file was not created!")
@@ -254,20 +391,36 @@ def main():
                 MODEL_TO_CONVERT_PATH, "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"
             ),
             os.path.join(os.getcwd(), "hyperlane-qwen2.5-coder-1.5b-instruct.gguf"),
+            os.path.join(LLAMA_CPP_PATH, os.path.basename(OUTPUT_GGUF_FILE)),
         ]
 
-        print("Checking alternative locations:")
+        print("\nChecking alternative locations:")
+        file_found = False
         for location in possible_locations:
             if os.path.exists(location):
                 size = os.path.getsize(location)
                 print(f"  ✓ Found at: {location} ({size:,} bytes)")
+                print(f"    You may need to move it to: {OUTPUT_GGUF_FILE}")
+                file_found = True
             else:
                 print(f"  ✗ Not at: {location}")
 
-        sys.exit(1)
+        if not file_found:
+            print(
+                "\nConversion appears to have failed. Check the error messages above."
+            )
+            sys.exit(1)
 
     print(f"\n\033[92m=== Conversion Complete! ===\033[0m")
-    print(f"Your GGUF model is ready at: {OUTPUT_GGUF_FILE}")
+    if os.path.exists(OUTPUT_GGUF_FILE):
+        print(f"Your GGUF model is ready at: {OUTPUT_GGUF_FILE}")
+        print(f"\nNext steps:")
+        print(f"1. Test the model with llama.cpp:")
+        print(f"   cd {LLAMA_CPP_PATH}")
+        print(f'   ./main -m {OUTPUT_GGUF_FILE} -p "Hello, world!"')
+        print(f"2. Use the model in your applications")
+    else:
+        print("Please check the alternative locations mentioned above.")
 
 
 if __name__ == "__main__":

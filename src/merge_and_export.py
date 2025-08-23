@@ -3,6 +3,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import os
 import re
+import shutil
 
 # --- Configuration ---
 # The base model ID, must be the same as in the training script.
@@ -36,49 +37,58 @@ def get_latest_checkpoint_path(base_dir="outputs"):
     return os.path.join(base_dir, latest_checkpoint_dir)
 
 
-def verify_checkpoint_files(checkpoint_path):
+def check_checkpoint_type(checkpoint_path):
     """
-    Verify that the checkpoint directory contains the required LoRA files.
+    Determine if the checkpoint contains LoRA adapters or a full model.
     """
-    required_files = ["adapter_config.json", "adapter_model.safetensors"]
-    # Also check for .bin files as fallback
-    fallback_files = ["adapter_model.bin"]
+    has_adapter_config = os.path.exists(
+        os.path.join(checkpoint_path, "adapter_config.json")
+    )
+    has_adapter_model = os.path.exists(
+        os.path.join(checkpoint_path, "adapter_model.safetensors")
+    ) or os.path.exists(os.path.join(checkpoint_path, "adapter_model.bin"))
+    has_full_model = os.path.exists(os.path.join(checkpoint_path, "model.safetensors"))
 
-    missing_files = []
-    for file in required_files:
-        if not os.path.exists(os.path.join(checkpoint_path, file)):
-            missing_files.append(file)
-
-    # If adapter_model.safetensors is missing, check for .bin file
-    if "adapter_model.safetensors" in missing_files:
-        if os.path.exists(os.path.join(checkpoint_path, "adapter_model.bin")):
-            missing_files.remove("adapter_model.safetensors")
-
-    if missing_files:
-        print(f"Missing files in {checkpoint_path}: {missing_files}")
-        print("Contents of checkpoint directory:")
-        for file in os.listdir(checkpoint_path):
-            print(f"  - {file}")
-        return False
-    return True
+    if has_adapter_config and has_adapter_model:
+        return "lora"
+    elif has_full_model:
+        return "full_model"
+    else:
+        return "unknown"
 
 
-def merge_model():
+def copy_full_model(source_path, dest_path):
     """
-    Merges the LoRA adapters with the base model and saves the result.
+    Copy the full model from checkpoint directory to the destination.
     """
-    try:
-        FINETUNED_MODEL_PATH = get_latest_checkpoint_path()
-        print(f"Found latest checkpoint: {FINETUNED_MODEL_PATH}")
-    except ValueError as e:
-        print(f"Error: {e}")
-        return
+    print(f"Copying full model from {source_path} to {dest_path}")
 
-    # Verify checkpoint files exist
-    if not verify_checkpoint_files(FINETUNED_MODEL_PATH):
-        print("Error: Required LoRA files not found in checkpoint directory.")
-        return
+    # Create destination directory
+    if not os.path.exists(dest_path):
+        os.makedirs(dest_path)
 
+    # List of files to copy (all files in the checkpoint except training-specific ones)
+    exclude_files = {
+        "training_args.bin",
+        "optimizer.pt",
+        "scheduler.pt",
+        "rng_state.pth",
+        "trainer_state.json",
+    }
+
+    for file_name in os.listdir(source_path):
+        if file_name not in exclude_files:
+            source_file = os.path.join(source_path, file_name)
+            dest_file = os.path.join(dest_path, file_name)
+            if os.path.isfile(source_file):
+                shutil.copy2(source_file, dest_file)
+                print(f"  Copied: {file_name}")
+
+
+def merge_lora_model(checkpoint_path):
+    """
+    Merge LoRA adapters with the base model.
+    """
     print(f"Loading base model: {BASE_MODEL_ID}")
     try:
         base_model = AutoModelForCausalLM.from_pretrained(
@@ -90,49 +100,79 @@ def merge_model():
         tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_ID, trust_remote_code=True)
     except Exception as e:
         print(f"Error loading base model: {e}")
-        return
+        return False
 
-    print(f"Loading LoRA adapters from: {FINETUNED_MODEL_PATH}")
+    print(f"Loading LoRA adapters from: {checkpoint_path}")
     try:
-        # Ensure we're using the absolute path and local_files_only=True
-        absolute_path = os.path.abspath(FINETUNED_MODEL_PATH)
+        absolute_path = os.path.abspath(checkpoint_path)
         model_with_lora = PeftModel.from_pretrained(
             base_model, absolute_path, local_files_only=True
         )
     except Exception as e:
         print(f"Error loading LoRA adapters: {e}")
-        print(
-            f"Make sure the checkpoint directory contains adapter_config.json and adapter_model files"
-        )
-        return
+        return False
 
     print("Merging LoRA adapters into the base model...")
     try:
-        # Merge the adapters into the base model
         merged_model = model_with_lora.merge_and_unload()
     except Exception as e:
         print(f"Error merging model: {e}")
-        return
+        return False
 
     print(f"Saving the merged model to: {MERGED_MODEL_SAVE_PATH}")
     try:
-        # Create directory if it doesn't exist
         if not os.path.exists(MERGED_MODEL_SAVE_PATH):
             os.makedirs(MERGED_MODEL_SAVE_PATH)
 
-        # Save the merged model and tokenizer
         merged_model.save_pretrained(MERGED_MODEL_SAVE_PATH)
         tokenizer.save_pretrained(MERGED_MODEL_SAVE_PATH)
+        return True
+    except Exception as e:
+        print(f"Error saving merged model: {e}")
+        return False
 
-        print("\n\033[92mSuccessfully merged and saved the model!\033[0m")
+
+def process_model():
+    """
+    Process the model based on checkpoint type (LoRA or full model).
+    """
+    try:
+        checkpoint_path = get_latest_checkpoint_path()
+        print(f"Found latest checkpoint: {checkpoint_path}")
+    except ValueError as e:
+        print(f"Error: {e}")
+        return
+
+    checkpoint_type = check_checkpoint_type(checkpoint_path)
+    print(f"Checkpoint type detected: {checkpoint_type}")
+
+    if checkpoint_type == "lora":
+        print("Processing LoRA checkpoint...")
+        success = merge_lora_model(checkpoint_path)
+    elif checkpoint_type == "full_model":
+        print("Processing full model checkpoint...")
+        try:
+            copy_full_model(checkpoint_path, MERGED_MODEL_SAVE_PATH)
+            success = True
+        except Exception as e:
+            print(f"Error copying full model: {e}")
+            success = False
+    else:
+        print("Error: Cannot determine checkpoint type.")
+        print(
+            "Expected either LoRA files (adapter_config.json, adapter_model.*) or full model (model.safetensors)"
+        )
+        return
+
+    if success:
+        print("\n\033[92mSuccessfully processed and saved the model!\033[0m")
+        print(f"Model saved to: {MERGED_MODEL_SAVE_PATH}")
         print(
             f"Next step: Convert the model in '{MERGED_MODEL_SAVE_PATH}' to GGUF format."
         )
-
-    except Exception as e:
-        print(f"Error saving merged model: {e}")
-        return
+    else:
+        print("\n\033[91mFailed to process the model.\033[0m")
 
 
 if __name__ == "__main__":
-    merge_model()
+    process_model()

@@ -4,6 +4,21 @@ import hashlib
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import torch
+
+# 检查 GPU 是否可用 (只执行一次)
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print("CUDA is available. Using GPU.")
+    is_amd_gpu = False
+elif torch.device("cuda:0").type == "cuda":
+    device = torch.device("cuda:0")
+    print("AMD GPU is available. Using GPU.")
+    is_amd_gpu = True
+else:
+    device = torch.device("cpu")
+    print("No GPU available, using CPU.")
+    is_amd_gpu = False
+
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
@@ -390,20 +405,22 @@ def fine_tune():
         logging_steps=LOG_STEPS,
         save_steps=SAVE_STEPS,
         save_total_limit=2,
-        half_precision_backend="none",
+        half_precision_backend="amp",
+        fp16=True,  # 启用 fp16 混合精度训练
         max_grad_norm=0.3,
         gradient_checkpointing=True,
         report_to="none",
         eval_strategy="no",
         dataloader_pin_memory=False,
         optim="adamw_torch",
+        dataloader_num_workers=os.cpu_count() or 4,  # 根据 CPU 核心数自动设置
     )
 
     # Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_ds,
+        train_dataset=tokenized_ds.with_format("torch"),
         data_collator=DataCollatorForLanguageModeling(tokenizer, mlm=False),
         tokenizer=tokenizer,
     )

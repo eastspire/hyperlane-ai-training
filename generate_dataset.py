@@ -3,34 +3,10 @@ import json
 import hashlib
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import torch
 import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-    print("CUDA is available. Using GPU.")
-    is_amd_gpu = False
-elif torch.device("cuda:0").type == "cuda":
-    device = torch.device("cuda:0")
-    print("AMD GPU is available. Using GPU.")
-    is_amd_gpu = True
-else:
-    device = torch.device("cpu")
-    print("No GPU available, using CPU.")
-    is_amd_gpu = False
-
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    TrainingArguments,
-    Trainer,
-    DataCollatorForLanguageModeling,
-    BitsAndBytesConfig,
-)
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-from datasets import Dataset
 import os
 import logging
 
@@ -38,7 +14,7 @@ import logging
 # 配置区（根据你的环境修改）
 # =============================
 REPO_ROOT = "."
-OUTPUT_DATASET = "full_text_dataset.jsonl"
+OUTPUT_DATASET = "full_text_dataset.json"
 TRAINED_MODEL_OUTPUT = "qwen-coder-finetuned"
 MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B"
 
@@ -435,13 +411,12 @@ def generate_dataset():
             print(f"⚠️  处理文件 {item.get('file_path', 'unknown')} 时出错: {e}")
             continue
 
-    # 保存为标准JSON格式（不是JSONL）
-    output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca.json")
-    with open(output_file, "w", encoding="utf-8") as f:
+    # 保存为标准JSON格式
+    with open(OUTPUT_DATASET, "w", encoding="utf-8") as f:
         json.dump(alpaca_dataset, f, ensure_ascii=False, indent=2)
 
     print(
-        f"🎉 Alpaca格式数据集生成完成: {output_file} (共 {len(alpaca_dataset)} 条训练样本)"
+        f"🎉 Alpaca格式数据集生成完成: {OUTPUT_DATASET} (共 {len(alpaca_dataset)} 条训练样本)"
     )
 
     # 输出数据集统计信息
@@ -524,12 +499,11 @@ def generate_enhanced_alpaca_dataset():
                 enhanced_dataset.append(enhanced_entry)
 
     # 保存增强版数据集
-    output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca_enhanced.json")
-    with open(output_file, "w", encoding="utf-8") as f:
+    with open(OUTPUT_DATASET, "w", encoding="utf-8") as f:
         json.dump(enhanced_dataset, f, ensure_ascii=False, indent=2)
 
     print(
-        f"🚀 增强版Alpaca数据集生成完成: {output_file} (共 {len(enhanced_dataset)} 条训练样本)"
+        f"🚀 增强版Alpaca数据集生成完成: {OUTPUT_DATASET} (共 {len(enhanced_dataset)} 条训练样本)"
     )
     return enhanced_dataset
 

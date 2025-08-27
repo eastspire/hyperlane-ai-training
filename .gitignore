@@ -1,3 +1,4 @@
-*.jsonl
 source
+*.json
+*.jsonl
 qwen-coder-finetuned

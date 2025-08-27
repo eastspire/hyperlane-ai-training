@@ -9,8 +9,8 @@ mkdir -p "$user_dir"
 # 克隆 hyperlane-dev 组织下的所有仓库
 echo "克隆 hyperlane-dev 组织下的仓库..."
 curl -s https://api.github.com/orgs/hyperlane-dev/repos?per_page=100 |
-  grep -o '"ssh_url": "[^"]*"' |
-  sed 's/"ssh_url": "//g' |
+  grep -o '"clone_url": "[^"]*"' |
+  sed 's/"clone_url": "//g' |
   sed 's/"//g' |
   while read repo
   do
@@ -26,8 +26,8 @@ curl -s https://api.github.com/orgs/hyperlane-dev/repos?per_page=100 |
 # 克隆 crates-dev 组织下的所有仓库
 echo "克隆 crates-dev 组织下的仓库..."
 curl -s https://api.github.com/orgs/crates-dev/repos?per_page=100 |
-  grep -o '"ssh_url": "[^"]*"' |
-  sed 's/"ssh_url": "//g' |
+  grep -o '"clone_url": "[^"]*"' |
+  sed 's/"clone_url": "//g' |
   sed 's/"//g' |
   while read repo
   do
@@ -43,8 +43,8 @@ curl -s https://api.github.com/orgs/crates-dev/repos?per_page=100 |
 # 克隆 eastspire 组织下的所有仓库
 echo "克隆 eastspire 组织下的仓库..."
 curl -s https://api.github.com/orgs/eastspire/repos?per_page=100 |
-  grep -o '"ssh_url": "[^"]*"' |
-  sed 's/"ssh_url": "//g' |
+  grep -o '"clone_url": "[^"]*"' |
+  sed 's/"clone_url": "//g' |
   sed 's/"//g' |
   while read repo
   do

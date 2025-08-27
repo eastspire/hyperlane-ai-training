@@ -1,7 +1,7 @@
 # export_gguf.py
 import os
 
-MERGED_MODEL = "qwen-coder-finetuned-merged"
+MERGED_MODEL = "qwen-coder-finetuned"
 GGUF_OUTPUT = "qwen-coder-finetuned-q5.gguf"
 
 

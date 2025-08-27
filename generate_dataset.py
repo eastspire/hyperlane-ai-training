@@ -245,6 +245,99 @@ def is_text_file(file_path: Path, sample_size: int = 1024) -> bool:
 # =============================
 # 处理单个文件
 # =============================
+# =============================
+# 处理单个文件
+# =============================
+
+
+def get_file_language(file_path: Path, content: str = None):
+    """
+    智能检测文件语言类型
+
+    Args:
+        file_path (Path): 文件路径
+        content (str): 文件内容（可选）
+
+    Returns:
+        str: 检测到的语言类型
+    """
+    ext = file_path.suffix.lower()
+    filename = file_path.name.lower()
+
+    # 首先尝试扩展名匹配
+    if ext in EXT_TO_LANGUAGE:
+        return EXT_TO_LANGUAGE[ext]
+
+    # 特殊文件名检测
+    special_files = {
+        "license": "license",
+        "readme": "markdown",
+        "changelog": "markdown",
+        "dockerfile": "dockerfile",
+        "makefile": "makefile",
+        "jenkinsfile": "groovy",
+        "vagrantfile": "ruby",
+        "gemfile": "ruby",
+        "requirements.txt": "text",
+        "package.json": "json",
+        "composer.json": "json",
+        "cargo.toml": "toml",
+        "pyproject.toml": "toml",
+        ".gitignore": "gitignore",
+        ".gitattributes": "gitattributes",
+        ".env": "env",
+        ".dockerignore": "dockerignore",
+    }
+
+    for pattern, lang in special_files.items():
+        if pattern in filename:
+            return lang
+
+    # 基于文件内容的检测（如果提供了内容）
+    if content:
+        content_lower = content.lower().strip()
+
+        # LICENSE文件检测
+        if any(
+            keyword in content_lower
+            for keyword in ["license", "copyright", "permission is hereby granted"]
+        ):
+            return "license"
+
+        # Shell脚本检测
+        if content.startswith("#!/bin/bash") or content.startswith("#!/bin/sh"):
+            return "shell"
+
+        # Python脚本检测
+        if content.startswith("#!/usr/bin/env python") or content.startswith(
+            "#!/usr/bin/python"
+        ):
+            return "python"
+
+        # HTML检测
+        if content_lower.startswith("<!doctype html") or "<html" in content_lower:
+            return "html"
+
+        # XML检测
+        if content.startswith("<?xml"):
+            return "xml"
+
+        # JSON检测
+        if (content.startswith("{") and content.endswith("}")) or (
+            content.startswith("[") and content.endswith("]")
+        ):
+            try:
+                import json
+
+                json.loads(content)
+                return "json"
+            except:
+                pass
+
+    # 如果都无法识别，返回文件扩展名或unknown
+    return ext.replace(".", "") if ext else "text"
+
+
 def process_file(file_path: Path, repo_root: Path):
     """
     Process a single file to extract content and metadata.
@@ -289,7 +382,7 @@ def process_file(file_path: Path, repo_root: Path):
         return {
             "text": content,
             "file_path": str(file_path.relative_to(repo_root)),
-            "language": EXT_TO_LANGUAGE.get(ext, ext.replace(".", "") or "unknown"),
+            "language": get_file_language(file_path, content),
             "size": len(content),
         }
     except Exception:
@@ -310,50 +403,181 @@ def create_alpaca_entry(item):
     language = item["language"]
     content = item["text"]
 
-    # 根据文件类型生成不同的instruction
+    # 根据文件类型生成不同的instruction和system
     if language in ["python", "py"]:
-        instruction = f"请解释这个Python代码文件的功能和实现逻辑"
-        system = (
-            "你是一个专业的Python代码分析师，能够详细解释代码的功能、结构和实现细节。"
-        )
+        instruction = "请详细分析这个Python代码文件的功能、结构和实现逻辑"
+        system = "你是一个专业的Python代码分析师，能够深入理解代码的功能、架构设计和实现细节。你会从代码结构、算法逻辑、设计模式等多个角度进行全面分析。"
     elif language in ["javascript", "js", "ts", "typescript"]:
-        instruction = f"请分析这个JavaScript/TypeScript代码的功能和设计模式"
-        system = "你是一个前端开发专家，擅长分析JavaScript和TypeScript代码的设计模式和最佳实践。"
+        instruction = "请分析这个JavaScript/TypeScript代码的功能实现和设计模式"
+        system = "你是一个前端开发专家，擅长分析JavaScript和TypeScript代码的设计模式、最佳实践和性能优化。"
+    elif language in ["rs"]:
+        instruction = "请分析这个Rust代码的功能实现和设计模式"
+        system = (
+            "你是一个Rust开发专家，擅长分析Rust代码的设计模式、最佳实践和性能优化。"
+        )
     elif language in ["java"]:
-        instruction = f"请解析这个Java代码的结构和功能实现"
-        system = "你是一个Java开发专家，能够深入分析Java代码的面向对象设计和功能实现。"
+        instruction = "请解析这个Java代码的面向对象设计和功能实现"
+        system = (
+            "你是一个Java开发专家，精通Java的面向对象编程、设计模式和企业级应用开发。"
+        )
     elif language in ["cpp", "c++", "c"]:
-        instruction = f"请分析这个C/C++代码的算法和数据结构实现"
-        system = "你是一个系统级编程专家，精通C/C++的内存管理、算法优化和系统设计。"
+        instruction = "请分析这个C/C++代码的算法实现和系统设计"
+        system = "你是一个系统级编程专家，精通C/C++的内存管理、算法优化、数据结构和系统设计。"
     elif language in ["html"]:
-        instruction = f"请分析这个HTML文件的结构和语义"
-        system = "你是一个前端开发专家，擅长HTML语义化和Web标准。"
+        instruction = "请分析这个HTML文件的结构、语义和设计规范"
+        system = "你是一个前端开发专家，精通HTML语义化、Web标准和用户体验设计。"
     elif language in ["css"]:
-        instruction = f"请解释这个CSS样式文件的设计思路和布局方案"
-        system = "你是一个UI/UX设计师，精通CSS布局、动画和响应式设计。"
+        instruction = "请解释这个CSS样式文件的设计思路和布局实现"
+        system = "你是一个UI/UX设计师，精通CSS布局、响应式设计、动画效果和现代CSS特性。"
     elif language in ["markdown", "md"]:
-        instruction = f"请总结这个Markdown文档的主要内容和结构"
-        system = "你是一个技术文档专家，能够准确提取和总结文档的核心信息。"
+        instruction = "请总结这个Markdown文档的主要内容、结构和要点"
+        system = (
+            "你是一个技术文档专家，擅长提取文档核心信息、分析文档结构和总结关键要点。"
+        )
     elif language in ["json"]:
-        instruction = f"请解释这个JSON配置文件的结构和用途"
-        system = "你是一个系统配置专家，能够解释各种配置文件的作用和最佳实践。"
+        instruction = "请解释这个JSON文件的数据结构、配置项和使用场景"
+        system = "你是一个系统配置专家，能够解析各种配置文件格式，理解配置项的作用和最佳实践。"
     elif language in ["yaml", "yml"]:
-        instruction = f"请分析这个YAML配置文件的配置项和用途"
-        system = "你是一个DevOps工程师，精通各种配置文件格式和部署配置。"
+        instruction = "请分析这个YAML配置文件的结构、配置项和应用场景"
+        system = "你是一个DevOps工程师，精通各种配置文件格式、部署配置和自动化运维。"
+    elif language == "license":
+        instruction = "请分析这个开源许可证文件的内容和法律条款"
+        system = "你是一个开源许可证专家，熟悉各种开源许可证的条款、限制和使用场景。"
+    elif language == "dockerfile":
+        instruction = "请分析这个Dockerfile的构建逻辑和容器配置"
+        system = "你是一个DevOps工程师，精通Docker容器技术、镜像构建和部署优化。"
+    elif language in ["shell", "bash"]:
+        instruction = "请分析这个Shell脚本的功能逻辑和系统操作"
+        system = "你是一个系统管理员，精通Shell脚本编程、系统运维和自动化任务。"
+    elif language in ["xml"]:
+        instruction = "请分析这个XML文件的结构和数据组织方式"
+        system = "你是一个数据结构专家，熟悉XML格式、数据建模和结构化数据处理。"
+    elif language in ["gitignore"]:
+        instruction = "请解释这个Git忽略文件的配置规则和作用"
+        system = "你是一个版本控制专家，精通Git工作流、代码管理和项目配置。"
     else:
-        instruction = f"请分析这个{language}文件的内容和功能"
-        system = f"你是一个资深的{language}开发专家，能够深入分析代码结构和实现逻辑。"
+        instruction = f"请分析这个{language}文件的内容结构和主要功能"
+        system = f"你是一个资深的{language}开发专家，能够深入分析代码结构、实现逻辑和技术特点。"
 
-    # 生成针对具体文件的instruction
-    instruction = f"{instruction}：{file_path}"
+    content_preview = content
+    size_note = f"文件大小: {item['size']} 字符"
+
+    # input包含文件的上下文信息和内容
+    input_text = f"""文件: {file_path}
+语言: {language}
+{size_note}
+
+代码内容:
+```{language}
+{content_preview}
+```"""
+
+    # 生成更真实的output，基于实际代码内容
+    output = generate_realistic_analysis(content, language, file_path, item["size"])
 
     return {
         "instruction": instruction,
-        "input": f"文件路径: {file_path}\n语言类型: {language}\n文件大小: {item['size']} 字符\n\n文件内容:\n```{language}\n{content}\n```",
-        "output": f"这是一个{language}文件，位于 `{file_path}`。文件包含 {item['size']} 个字符的代码内容。\n\n基于文件内容的分析，该文件主要功能包括：\n\n1. **文件结构**: 该文件采用了标准的{language}语法结构\n2. **主要功能**: 需要根据具体代码内容进行详细分析\n3. **技术特点**: 使用了{language}的相关特性和最佳实践\n4. **代码质量**: 代码结构清晰，符合{language}的编码规范\n\n建议进一步分析具体的函数、类或模块实现来了解更详细的功能逻辑。",
+        "input": input_text,
+        "output": output,
         "system": system,
         "history": [],
     }
+
+
+def generate_realistic_analysis(content, language, file_path, size):
+    """
+    生成更真实的代码分析回答
+    """
+    # 简单的代码分析逻辑
+    lines = content.split("\n")
+    non_empty_lines = [line for line in lines if line.strip()]
+
+    # 检测一些基本特征
+    has_functions = any(
+        "def " in line or "function " in line or "func " in line for line in lines
+    )
+    has_classes = any("class " in line for line in lines)
+    has_imports = any(
+        line.strip().startswith(("import ", "from ", "#include", "require(", "const "))
+        for line in lines
+    )
+    has_comments = any(
+        line.strip().startswith(("#", "//", "/*", "<!--")) for line in lines
+    )
+
+    analysis = f"这是一个{language}文件，位于 `{file_path}`，包含{size}个字符，共{len(lines)}行代码。\n\n"
+
+    # 结构分析
+    analysis += "**代码结构分析:**\n"
+    if has_imports:
+        analysis += "- 包含模块导入/引用语句，说明代码依赖其他模块或库\n"
+    if has_classes:
+        analysis += "- 定义了类结构，采用面向对象编程方式\n"
+    if has_functions:
+        analysis += "- 包含函数定义，代码模块化程度较好\n"
+    if has_comments:
+        analysis += "- 有注释说明，代码可读性较好\n"
+
+    # 功能分析
+    analysis += "\n**主要功能特点:**\n"
+
+    if language in ["python", "py"]:
+        if "def " in content:
+            func_count = content.count("def ")
+            analysis += f"- 定义了{func_count}个函数，实现特定的功能逻辑\n"
+        if "class " in content:
+            class_count = content.count("class ")
+            analysis += f"- 包含{class_count}个类定义，采用面向对象设计\n"
+        if "import " in content or "from " in content:
+            analysis += "- 使用了外部库依赖，扩展了功能实现\n"
+
+    elif language in ["javascript", "js"]:
+        if "function" in content or "=>" in content:
+            analysis += "- 包含JavaScript函数定义，实现交互逻辑\n"
+        if "const " in content or "let " in content:
+            analysis += "- 使用现代JavaScript语法，代码规范性较好\n"
+        if "async" in content or "await" in content:
+            analysis += "- 采用异步编程模式，处理异步操作\n"
+
+    elif language in ["html"]:
+        if "<script" in content:
+            analysis += "- 包含JavaScript脚本，具有交互功能\n"
+        if "<style" in content or "css" in content:
+            analysis += "- 包含样式定义，注重页面外观设计\n"
+        if "<!DOCTYPE" in content:
+            analysis += "- 使用标准HTML5文档类型声明\n"
+
+    elif language in ["css"]:
+        selector_count = content.count("{")
+        analysis += f"- 包含约{selector_count}个CSS规则，定义页面样式\n"
+        if "@media" in content:
+            analysis += "- 使用媒体查询，支持响应式设计\n"
+        if "animation" in content or "transition" in content:
+            analysis += "- 包含动画效果，提升用户体验\n"
+
+    # 代码质量评估
+    analysis += "\n**代码质量评估:**\n"
+    comment_ratio = sum(
+        1 for line in lines if line.strip().startswith(("#", "//", "/*", "<!--"))
+    ) / max(len(non_empty_lines), 1)
+
+    if comment_ratio > 0.1:
+        analysis += "- 注释较为充分，代码可维护性好\n"
+    elif comment_ratio > 0.05:
+        analysis += "- 有适量注释，基本满足可读性要求\n"
+    else:
+        analysis += "- 注释相对较少，建议增加必要的说明\n"
+
+    if len(non_empty_lines) < 50:
+        analysis += "- 代码较为简洁，结构清晰\n"
+    elif len(non_empty_lines) < 200:
+        analysis += "- 代码规模适中，逻辑相对完整\n"
+    else:
+        analysis += "- 代码规模较大，功能相对复杂\n"
+
+    analysis += f"\n这个{language}文件展现了良好的编程实践，建议结合具体业务需求进一步优化和完善。"
+
+    return analysis
 
 
 # =============================
@@ -411,12 +635,13 @@ def generate_dataset():
             print(f"⚠️  处理文件 {item.get('file_path', 'unknown')} 时出错: {e}")
             continue
 
-    # 保存为标准JSON格式
-    with open(OUTPUT_DATASET, "w", encoding="utf-8") as f:
+    # 保存为标准JSON格式（不是JSONL）
+    output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca.json")
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(alpaca_dataset, f, ensure_ascii=False, indent=2)
 
     print(
-        f"🎉 Alpaca格式数据集生成完成: {OUTPUT_DATASET} (共 {len(alpaca_dataset)} 条训练样本)"
+        f"🎉 Alpaca格式数据集生成完成: {output_file} (共 {len(alpaca_dataset)} 条训练样本)"
     )
 
     # 输出数据集统计信息
@@ -427,10 +652,6 @@ def generate_dataset():
         if "语言类型:" in input_text:
             lang = input_text.split("语言类型:")[1].split("\n")[0].strip()
             language_stats[lang] = language_stats.get(lang, 0) + 1
-
-    print(f"\n📊 数据集语言分布:")
-    for lang, count in sorted(language_stats.items(), key=lambda x: x[1], reverse=True):
-        print(f"  {lang}: {count} 个文件")
 
     return alpaca_dataset
 
@@ -499,11 +720,12 @@ def generate_enhanced_alpaca_dataset():
                 enhanced_dataset.append(enhanced_entry)
 
     # 保存增强版数据集
-    with open(OUTPUT_DATASET, "w", encoding="utf-8") as f:
+    output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca_enhanced.json")
+    with open(output_file, "w", encoding="utf-8") as f:
         json.dump(enhanced_dataset, f, ensure_ascii=False, indent=2)
 
     print(
-        f"🚀 增强版Alpaca数据集生成完成: {OUTPUT_DATASET} (共 {len(enhanced_dataset)} 条训练样本)"
+        f"🚀 增强版Alpaca数据集生成完成: {output_file} (共 {len(enhanced_dataset)} 条训练样本)"
     )
     return enhanced_dataset
 

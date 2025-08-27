@@ -8,7 +8,6 @@ import os
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# 检查 GPU 是否可用 (只执行一次)
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print("CUDA is available. Using GPU.")
@@ -38,14 +37,13 @@ import logging
 # =============================
 # 配置区（根据你的环境修改）
 # =============================
-REPO_ROOT = "."  # 修改为你的仓库路径，如: "/path/to/your/repo"
+REPO_ROOT = "."
 OUTPUT_DATASET = "full_text_dataset.jsonl"
-TRAINED_MODEL_OUTPUT = "qwen-coder-finetuned"  # 训练后模型保存路径
-MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B"  # 支持中文/英文代码
+TRAINED_MODEL_OUTPUT = "qwen-coder-finetuned"
+MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B"
 
 # 二进制文件黑名单（只这些才排除）
 BINARY_EXTENSIONS = {
-    # 图像
     ".jpg",
     ".jpeg",
     ".png",
@@ -55,7 +53,6 @@ BINARY_EXTENSIONS = {
     ".ico",
     ".svg",
     ".webp",
-    # 音视频
     ".mp3",
     ".wav",
     ".flac",
@@ -66,7 +63,6 @@ BINARY_EXTENSIONS = {
     ".mov",
     ".wmv",
     ".webm",
-    # 压缩包
     ".zip",
     ".tar",
     ".gz",
@@ -77,7 +73,6 @@ BINARY_EXTENSIONS = {
     ".xz",
     ".iso",
     ".dmg",
-    # 可执行文件
     ".exe",
     ".dll",
     ".so",
@@ -93,12 +88,10 @@ BINARY_EXTENSIONS = {
     ".obj",
     ".lib",
     ".a",
-    # 数据库
     ".db",
     ".sqlite",
     ".mdb",
     ".accdb",
-    # 文档（二进制）
     ".doc",
     ".docx",
     ".xls",
@@ -106,7 +99,6 @@ BINARY_EXTENSIONS = {
     ".ppt",
     ".pptx",
     ".pdf",
-    # 设计文件
     ".psd",
     ".ai",
     ".indd",
@@ -153,7 +145,7 @@ EXCLUDE_DIRS = {
 
 # 排除的文件名
 EXCLUDE_FILES = {
-    "train_your_code_model.py",  # 排除自己
+    "train_your_code_model.py",
     "package-lock.json",
     "yarn.lock",
     "pnpm-lock.yaml",
@@ -187,12 +179,9 @@ EXCLUDE_PATTERNS = [
     "*.lock",
 ]
 
-# 文件大小限制
-MAX_FILE_SIZE_BYTES = 1024 * 1024  # 1MB
-MIN_CONTENT_LENGTH = 1  # 至少1字符
 
 # 多线程
-NUM_WORKERS = None  # 自动
+NUM_WORKERS = None
 
 # 语言映射
 EXT_TO_LANGUAGE = {
@@ -251,6 +240,16 @@ TARGET_MODULES = [
 # 判断是否为文本文件
 # =============================
 def is_text_file(file_path: Path, sample_size: int = 1024) -> bool:
+    """
+    Checks if a file is a text file by sampling its content.
+
+    Args:
+        - `file_path`: Path to the file.
+        - `sample_size`: Number of bytes to sample from the file.
+
+    Returns:
+        True if the file is likely a text file, False otherwise.
+    """
     try:
         with open(file_path, "rb") as f:
             sample = f.read(sample_size)
@@ -268,6 +267,17 @@ def is_text_file(file_path: Path, sample_size: int = 1024) -> bool:
 # 处理单个文件
 # =============================
 def process_file(file_path: Path, repo_root: Path):
+    """
+    Processes a single file to extract its content and metadata.
+
+    Args:
+        - `file_path`: Path to the file.
+        - `repo_root`: Path to the repository root.
+
+    Returns:
+        A dictionary containing the file's text content, relative path, language, and size,
+        or None if the file is excluded or cannot be processed.
+    """
     try:
         ext = file_path.suffix.lower()
         if ext in BINARY_EXTENSIONS:
@@ -278,10 +288,7 @@ def process_file(file_path: Path, repo_root: Path):
             return None
         if any(file_path.match(p) for p in EXCLUDE_PATTERNS):
             return None
-        if (
-            file_path.stat().st_size == 0
-            or file_path.stat().st_size > MAX_FILE_SIZE_BYTES
-        ):
+        if file_path.stat().st_size == 0:
             return None
         if not is_text_file(file_path):
             return None
@@ -295,8 +302,6 @@ def process_file(file_path: Path, repo_root: Path):
                 break
             except Exception:
                 continue
-        if not content or len(content) < MIN_CONTENT_LENGTH:
-            return None
 
         return {
             "text": content,
@@ -312,6 +317,18 @@ def process_file(file_path: Path, repo_root: Path):
 # 生成数据集
 # =============================
 def generate_dataset():
+    """
+    Generates a dataset from the files in the repository.
+
+    Returns:
+        A list of dictionaries, each containing the text content, relative path, language, and size of a file.
+    """
+    """
+    Generates a dataset from the files in the repository.
+
+    Returns:
+        A list of dictionaries, each containing the text content, relative path, language, and size of a file.
+    """
     repo_path = Path(REPO_ROOT).resolve()
     print(f"🔍 扫描仓库: {repo_path}")
 
@@ -350,6 +367,9 @@ def generate_dataset():
 # 微调模型
 # =============================
 def fine_tune():
+    """
+    Fine-tunes the Qwen-Coder-1.5B model on the generated dataset.
+    """
     print("📚 加载数据集...")
     dataset = Dataset.from_json(OUTPUT_DATASET)
 
@@ -358,6 +378,15 @@ def fine_tune():
     tokenizer.pad_token = tokenizer.eos_token
 
     def tokenize(examples):
+        """
+        Tokenizes the input examples.
+
+        Args:
+            - `examples`: A dictionary containing the text to tokenize.
+
+        Returns:
+            A dictionary containing the tokenized input.
+        """
         return tokenizer(
             examples["text"], truncation=True, max_length=MAX_SEQ_LENGTH, padding=False
         )

@@ -145,6 +145,8 @@ EXCLUDE_DIRS = {
 
 # 排除的文件名
 EXCLUDE_FILES = {
+    "ai.py",
+    "clone_repos.sh",
     "train_your_code_model.py",
     "package-lock.json",
     "yarn.lock",
@@ -318,16 +320,17 @@ def process_file(file_path: Path, repo_root: Path):
 # =============================
 def generate_dataset():
     """
-    Generates a dataset from the files in the repository.
+    Generate a dataset from repository files.
+
+    Args:
+        None
 
     Returns:
-        A list of dictionaries, each containing the text content, relative path, language, and size of a file.
-    """
-    """
-    Generates a dataset from the files in the repository.
-
-    Returns:
-        A list of dictionaries, each containing the text content, relative path, language, and size of a file.
+        list: A list of dictionaries with the following keys:
+            - `text` (str): File content.
+            - `path` (str): Relative file path.
+            - `language` (str): Detected language of the file.
+            - `size` (int): File size in bytes.
     """
     repo_path = Path(REPO_ROOT).resolve()
     print(f"🔍 扫描仓库: {repo_path}")

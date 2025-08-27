@@ -4,6 +4,9 @@ import hashlib
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import torch
+import os
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # 检查 GPU 是否可用 (只执行一次)
 if torch.cuda.is_available():

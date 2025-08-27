@@ -270,15 +270,19 @@ def is_text_file(file_path: Path, sample_size: int = 1024) -> bool:
 # =============================
 def process_file(file_path: Path, repo_root: Path):
     """
-    Processes a single file to extract its content and metadata.
+    Process a single file to extract content and metadata.
 
     Args:
-        - `file_path`: Path to the file.
-        - `repo_root`: Path to the repository root.
+        file_path (Path): Path to the file.
+        repo_root (Path): Path to the repository root.
 
     Returns:
-        A dictionary containing the file's text content, relative path, language, and size,
-        or None if the file is excluded or cannot be processed.
+        dict | None: A dictionary with the following keys if processed successfully:
+            - `text` (str): File content.
+            - `file_path` (str): Relative path from repo root.
+            - `language` (str): Detected language based on extension.
+            - `size` (int): Length of the text content.
+        Returns None if the file is excluded or cannot be processed.
     """
     try:
         ext = file_path.suffix.lower()

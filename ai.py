@@ -364,7 +364,7 @@ def fine_tune():
         tokenize, batched=True, remove_columns=["text", "file_path", "language", "size"]
     )
 
-    print("🚀 加载 Qwen-Coder-1.5B（4-bit 量化）...")
+    print("🚀 加载 Qwen-Coder-1.5B...")
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
         torch_dtype=torch.bfloat16,

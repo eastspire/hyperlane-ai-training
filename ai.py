@@ -367,10 +367,15 @@ def fine_tune():
         tokenize, batched=True, remove_columns=["text", "file_path", "language", "size"]
     )
 
-    print("🚀 加载 Qwen-Coder-1.5B...")
+    print("🚀 加载 Qwen-Coder-1.5B (4-bit 量化)...")
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,  # AMD GPU 推荐 bfloat16
+    )
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        torch_dtype=torch.bfloat16,
+        quantization_config=bnb_config,  # ✅ 使用 4-bit
         device_map="auto",
         trust_remote_code=True,
     )
@@ -386,7 +391,7 @@ def fine_tune():
         task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()  # 应显示：只训练 ~0.5%
+    model.print_trainable_parameters()
 
     # 训练参数
     training_args = TrainingArguments(
@@ -401,15 +406,15 @@ def fine_tune():
         logging_steps=LOG_STEPS,
         save_steps=SAVE_STEPS,
         save_total_limit=2,
-        half_precision_backend="amp",
-        fp16=True,  # 启用 fp16 混合精度训练
+        bf16=True,  # ✅ 改成 bfloat16
+        fp16=False,  # ❌ 关闭 fp16
         max_grad_norm=0.3,
         gradient_checkpointing=True,
         report_to="none",
         eval_strategy="no",
         dataloader_pin_memory=False,
         optim="adamw_torch",
-        dataloader_num_workers=os.cpu_count() or 4,  # 根据 CPU 核心数自动设置
+        dataloader_num_workers=os.cpu_count() or 4,
     )
 
     # Trainer

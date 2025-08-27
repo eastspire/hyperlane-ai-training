@@ -364,17 +364,10 @@ def fine_tune():
         tokenize, batched=True, remove_columns=["text", "file_path", "language", "size"]
     )
 
-    # 4-bit 量化
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
-
     print("🚀 加载 Qwen-Coder-1.5B（4-bit 量化）...")
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        quantization_config=bnb_config,
+        torch_dtype=torch.bfloat16,
         device_map="auto",
         trust_remote_code=True,
     )

@@ -12,7 +12,7 @@ def run_export():
         return
 
     cmd = (
-        f"python llama.cpp/convert-hf-to-gguf.py {MERGED_MODEL} "
+        f"python llama.cpp/convert_hf_to_gguf.py {MERGED_MODEL} "
         f"--outfile {GGUF_OUTPUT} --q5_0"
     )
     print(f"🚀 执行: {cmd}")

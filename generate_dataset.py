@@ -1,13 +1,9 @@
 import os
-import json
-import hashlib
 import mimetypes
 from datetime import datetime
 from pathlib import Path
-import base64
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from queue import Queue
 import time
 
 
@@ -65,34 +61,12 @@ class ThreadSafeFileProcessor:
             ".cmake",
         }
 
-        self.image_extensions = {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".gif",
-            ".bmp",
-            ".tiff",
-            ".webp",
-            ".svg",
-        }
-
         # 性能统计
         self.stats = {
             "files_per_second": 0,
             "total_processing_time": 0,
             "thread_stats": {},
         }
-
-    def get_file_hash(self, file_path):
-        """计算文件的MD5哈希值 - 优化版本"""
-        hash_md5 = hashlib.md5()
-        try:
-            with open(file_path, "rb") as f:
-                for chunk in iter(lambda: f.read(8192), b""):
-                    hash_md5.update(chunk)
-            return hash_md5.hexdigest()
-        except Exception as e:
-            return f"error: {str(e)}"
 
     def read_text_file(self, file_path):
         """读取文本文件内容 - 优化版本"""
@@ -106,17 +80,6 @@ class ThreadSafeFileProcessor:
             except Exception as e:
                 return f"读取错误: {str(e)}"
         return "无法解码文件内容"
-
-    def encode_binary_file(self, file_path):
-        """将二进制文件编码为base64 - 优化版本"""
-        try:
-            with open(file_path, "rb") as f:
-                file_size = os.path.getsize(file_path)
-                if file_size > 10 * 1024 * 1024:  # 大于10MB
-                    return "文件过大，跳过编码"
-                return base64.b64encode(f.read()).decode("utf-8")
-        except Exception as e:
-            return f"编码错误: {str(e)}"
 
     def get_file_info(self, file_path):
         """获取文件基本信息"""
@@ -151,7 +114,6 @@ class ThreadSafeFileProcessor:
                 "path": str(relative_path),
                 "full_path": str(file_path),
                 "extension": extension,
-                "hash": self.get_file_hash(file_path),
                 "file_info": file_info,
                 "processed_time": datetime.now().isoformat(),
                 "thread_id": thread_id,
@@ -162,31 +124,7 @@ class ThreadSafeFileProcessor:
                 content = self.read_text_file(file_path)
                 file_data["content"] = content
                 file_data["encoding"] = "utf-8"
-                file_data["preview"] = (
-                    content[:500] + "..." if len(content) > 500 else content
-                )
-
-            elif extension in self.image_extensions:
-                file_data["type"] = "image"
-                size = file_info.get("size", 0)
-                if size < 5 * 1024 * 1024:
-                    file_data["content"] = self.encode_binary_file(file_path)
-                    file_data["encoding"] = "base64"
-                else:
-                    file_data["content"] = "图像文件过大，仅保存元数据"
-                    file_data["encoding"] = "none"
-                file_data["preview"] = f"📷 图像文件 ({size} B)"
-
-            else:
-                file_data["type"] = "binary"
-                size = file_info.get("size", 0)
-                if size < 1024 * 1024:
-                    file_data["content"] = self.encode_binary_file(file_path)
-                    file_data["encoding"] = "base64"
-                else:
-                    file_data["content"] = "文件过大，仅保存元数据"
-                    file_data["encoding"] = "none"
-                file_data["preview"] = f"📁 二进制文件 ({size} B)"
+                file_data["preview"] = content
 
             self.stats["thread_stats"][thread_id]["processed"] += 1
             return file_data
@@ -204,7 +142,9 @@ class ThreadSafeFileProcessor:
                 "thread_id": thread_id,
             }
 
-    def update_progress(self, file_path=""):
+    def update_progress(
+        self,
+    ):
         """更新进度 - 线程安全"""
         with self.progress_lock:
             self.processed_count += 1
@@ -264,7 +204,7 @@ class ThreadSafeFileProcessor:
                     result = future.result()
                     with self.dataset_lock:
                         self.dataset.append(result)
-                    self.update_progress(file_path)
+                    self.update_progress()
                 except Exception as e:
                     print(f"\n处理文件失败 {file_path}: {e}")
 
@@ -284,9 +224,6 @@ class ThreadSafeFileProcessor:
 
     def generate_markdown_report(self):
         """生成完整的 Markdown 报告"""
-        total_files = len(self.dataset)
-        errors = sum(1 for f in self.dataset if "error" in f)
-        success = total_files - errors
 
         file_types = {}
         extensions = {}
@@ -302,62 +239,15 @@ class ThreadSafeFileProcessor:
             if "file_info" in item and "size" in item["file_info"]:
                 total_size += item["file_info"]["size"]
 
-        def human_readable_size(size):
-            for unit in ["B", "KB", "MB", "GB"]:
-                if size < 1024.0:
-                    return f"{size:.2f} {unit}"
-                size /= 1024.0
-            return f"{size:.2f} TB"
-
         # 创建输出目录（如果不存在）
         Path(self.output_file).parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.output_file, "w", encoding="utf-8") as md:
-            md.write(f"# 📁 AI 数据集报告\n\n")
-            md.write(
-                f"> 生成时间: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`\n\n"
-            )
-
-            md.write("## 📊 摘要信息\n\n")
-            md.write("| 项目 | 值 |\n")
-            md.write("|------|-----|\n")
-            md.write(f"| 总文件数 | {total_files} |\n")
-            md.write(f"| 成功处理 | {success} |\n")
-            md.write(f"| 处理失败 | {errors} |\n")
-            md.write(f"| 总大小 | {human_readable_size(total_size)} |\n")
-            md.write(f"| 处理耗时 | {self.stats['total_processing_time']:.2f} 秒 |\n")
-            md.write(f"| 处理速度 | {self.stats['files_per_second']:.2f} 文件/秒 |\n")
-            md.write(f"| 线程数 | {self.max_workers} |\n\n")
-
-            md.write("## 🧩 文件类型分布\n\n")
-            md.write("| 类型 | 数量 |\n")
-            md.write("|------|------|\n")
-            for t, c in file_types.items():
-                md.write(f"| `{t}` | {c} |\n")
-            md.write("\n")
-
-            md.write("## 🔧 扩展名统计\n\n")
-            md.write("| 扩展名 | 数量 |\n")
-            md.write("|--------|------|\n")
-            for ext, cnt in sorted(extensions.items(), key=lambda x: -x[1]):
-                md.write(f"| `{ext}` | {cnt} |\n")
-            md.write("\n")
-
-            md.write("## ⚙️ 线程性能统计\n\n")
-            md.write("| 线程ID | 处理文件数 | 错误数 |\n")
-            md.write("|--------|-----------|--------|\n")
-            for tid, stat in self.stats["thread_stats"].items():
-                md.write(f"| `{tid}` | {stat['processed']} | {stat['errors']} |\n")
-            md.write("\n")
-
-            md.write("## 📄 详细文件列表\n\n")
-            md.write("| ID | 文件名 | 路径 | 类型 | 大小 | 修改时间 | 预览 |\n")
-            md.write("|----|--------|------|------|------|----------|-------|\n")
 
             for item in sorted(self.dataset, key=lambda x: x.get("id", 0)):
                 filename = item["filename"]
                 path = item["path"]
-                ftype = item.get("type", "unknown")
+                ftype = item.get("type", "")
                 preview = item.get("preview", "")
                 size = item["file_info"].get("size", 0)
                 mtime = item["file_info"].get("modified_time", "N/A")
@@ -381,21 +271,14 @@ class ThreadSafeFileProcessor:
 
                 md.write(f"### 📄 文件 #{item['id']} - `{item['filename']}`\n\n")
                 md.write(f"- **路径**: `{item['path']}`\n")
-                md.write(f"- **类型**: `{item['type']}`\n")
                 md.write(f"- **大小**: `{item['file_info']['size']:,} B`\n")
                 md.write(f"- **修改时间**: `{item['file_info']['modified_time']}`\n")
                 md.write(f"- **编码**: `{item.get('encoding', 'N/A')}`\n\n")
-
                 content = item.get("content", "")
-                if item["type"] == "text":
-                    md.write("#### 内容预览\n\n")
-                    md.write("```txt\n")
-                    md.write(
-                        (content[:2000] + "...\n")
-                        if len(content) > 2000
-                        else content + "\n"
-                    )
-                    md.write("```\n\n")
+                md.write("#### 内容预览\n\n")
+                md.write("\n")
+                md.write(content)
+                md.write("\n\n")
 
         print(f"\n✅ Markdown 报告已生成: {self.output_file}")
 

@@ -12,9 +12,7 @@ import time
 
 
 class ThreadSafeFileProcessor:
-    def __init__(
-        self, source_dir="source", output_file="dataset.json", max_workers=None
-    ):
+    def __init__(self, source_dir="source", output_file="dataset.md", max_workers=None):
         self.source_dir = source_dir
         self.output_file = output_file
         self.max_workers = max_workers or min(32, (os.cpu_count() or 1) + 4)
@@ -90,7 +88,6 @@ class ThreadSafeFileProcessor:
         hash_md5 = hashlib.md5()
         try:
             with open(file_path, "rb") as f:
-                # 使用更大的缓冲区提升性能
                 for chunk in iter(lambda: f.read(8192), b""):
                     hash_md5.update(chunk)
             return hash_md5.hexdigest()
@@ -100,8 +97,6 @@ class ThreadSafeFileProcessor:
     def read_text_file(self, file_path):
         """读取文本文件内容 - 优化版本"""
         encodings = ["utf-8", "gbk", "gb2312", "latin1"]
-
-        # 先尝试最常用的编码
         for encoding in encodings:
             try:
                 with open(file_path, "r", encoding=encoding, buffering=8192) as f:
@@ -110,14 +105,12 @@ class ThreadSafeFileProcessor:
                 continue
             except Exception as e:
                 return f"读取错误: {str(e)}"
-
         return "无法解码文件内容"
 
     def encode_binary_file(self, file_path):
         """将二进制文件编码为base64 - 优化版本"""
         try:
             with open(file_path, "rb") as f:
-                # 对于大文件，分块读取
                 file_size = os.path.getsize(file_path)
                 if file_size > 10 * 1024 * 1024:  # 大于10MB
                     return "文件过大，跳过编码"
@@ -142,7 +135,6 @@ class ThreadSafeFileProcessor:
         """处理单个文件 - 线程安全版本"""
         thread_id = threading.current_thread().ident
 
-        # 记录线程统计
         if thread_id not in self.stats["thread_stats"]:
             self.stats["thread_stats"][thread_id] = {"processed": 0, "errors": 0}
 
@@ -151,7 +143,6 @@ class ThreadSafeFileProcessor:
             relative_path = file_path.relative_to(self.source_dir)
             extension = file_path.suffix.lower()
 
-            # 基础文件信息
             file_info = self.get_file_info(file_path)
 
             file_data = {
@@ -166,29 +157,36 @@ class ThreadSafeFileProcessor:
                 "thread_id": thread_id,
             }
 
-            # 根据文件类型处理内容
             if extension in self.text_extensions:
                 file_data["type"] = "text"
-                file_data["content"] = self.read_text_file(file_path)
+                content = self.read_text_file(file_path)
+                file_data["content"] = content
                 file_data["encoding"] = "utf-8"
+                file_data["preview"] = (
+                    content[:500] + "..." if len(content) > 500 else content
+                )
 
             elif extension in self.image_extensions:
                 file_data["type"] = "image"
-                if file_info.get("size", 0) < 5 * 1024 * 1024:  # 小于5MB
+                size = file_info.get("size", 0)
+                if size < 5 * 1024 * 1024:
                     file_data["content"] = self.encode_binary_file(file_path)
                     file_data["encoding"] = "base64"
                 else:
                     file_data["content"] = "图像文件过大，仅保存元数据"
                     file_data["encoding"] = "none"
+                file_data["preview"] = f"📷 图像文件 ({size} B)"
 
             else:
                 file_data["type"] = "binary"
-                if file_info.get("size", 0) < 1024 * 1024:  # 小于1MB
+                size = file_info.get("size", 0)
+                if size < 1024 * 1024:
                     file_data["content"] = self.encode_binary_file(file_path)
                     file_data["encoding"] = "base64"
                 else:
                     file_data["content"] = "文件过大，仅保存元数据"
                     file_data["encoding"] = "none"
+                file_data["preview"] = f"📁 二进制文件 ({size} B)"
 
             self.stats["thread_stats"][thread_id]["processed"] += 1
             return file_data
@@ -254,26 +252,19 @@ class ThreadSafeFileProcessor:
 
         self.start_time = time.time()
 
-        # 使用ThreadPoolExecutor进行多线程处理
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # 提交所有任务
             future_to_file = {
                 executor.submit(self.process_single_file, file_path, idx + 1): file_path
                 for idx, file_path in enumerate(all_files)
             }
 
-            # 收集结果
             for future in as_completed(future_to_file):
                 file_path = future_to_file[future]
                 try:
                     result = future.result()
-
-                    # 线程安全地添加到数据集
                     with self.dataset_lock:
                         self.dataset.append(result)
-
                     self.update_progress(file_path)
-
                 except Exception as e:
                     print(f"\n处理文件失败 {file_path}: {e}")
 
@@ -291,125 +282,156 @@ class ThreadSafeFileProcessor:
 
         return True
 
-    def generate_summary(self):
-        """生成数据集摘要信息"""
+    def generate_markdown_report(self):
+        """生成完整的 Markdown 报告"""
         total_files = len(self.dataset)
+        errors = sum(1 for f in self.dataset if "error" in f)
+        success = total_files - errors
+
         file_types = {}
-        total_size = 0
         extensions = {}
-        errors = 0
+        total_size = 0
 
         for item in self.dataset:
-            # 统计错误
             if "error" in item:
-                errors += 1
                 continue
-
-            # 统计文件类型
-            file_type = item.get("type", "unknown")
-            file_types[file_type] = file_types.get(file_type, 0) + 1
-
-            # 统计文件扩展名
-            ext = item.get("extension", "")
+            ftype = item.get("type", "unknown")
+            ext = item.get("extension", "未知")
+            file_types[ftype] = file_types.get(ftype, 0) + 1
             extensions[ext] = extensions.get(ext, 0) + 1
-
-            # 统计总大小
             if "file_info" in item and "size" in item["file_info"]:
                 total_size += item["file_info"]["size"]
 
-        # 线程性能统计
-        thread_performance = {}
-        for thread_id, stats in self.stats["thread_stats"].items():
-            thread_performance[f"thread_{thread_id}"] = stats
+        def human_readable_size(size):
+            for unit in ["B", "KB", "MB", "GB"]:
+                if size < 1024.0:
+                    return f"{size:.2f} {unit}"
+                size /= 1024.0
+            return f"{size:.2f} TB"
 
-        return {
-            "total_files": total_files,
-            "successful_files": total_files - errors,
-            "failed_files": errors,
-            "total_size": total_size,
-            "total_size_human": self.human_readable_size(total_size),
-            "file_types": file_types,
-            "extensions": extensions,
-            "performance": {
-                "processing_time_seconds": self.stats["total_processing_time"],
-                "files_per_second": self.stats["files_per_second"],
-                "max_workers": self.max_workers,
-                "thread_performance": thread_performance,
-            },
-            "generated_time": datetime.now().isoformat(),
-        }
+        # 创建输出目录（如果不存在）
+        Path(self.output_file).parent.mkdir(parents=True, exist_ok=True)
 
-    def human_readable_size(self, size):
-        """将字节转换为人类可读的格式"""
-        for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if size < 1024.0:
-                return f"{size:.2f} {unit}"
-            size /= 1024.0
-        return f"{size:.2f} PB"
-
-    def save_dataset(self):
-        """保存数据集到JSON文件"""
-        print("正在生成摘要信息...")
-        summary = self.generate_summary()
-
-        # 按ID排序确保输出有序
-        self.dataset.sort(key=lambda x: x.get("id", 0))
-
-        final_dataset = {"summary": summary, "files": self.dataset}
-
-        print("正在保存JSON文件...")
-        try:
-            with open(self.output_file, "w", encoding="utf-8") as f:
-                json.dump(final_dataset, f, ensure_ascii=False, indent=2)
-
-            print(f"\n✅ 数据集已保存到: {self.output_file}")
-            print(f"📊 摘要信息:")
-            print(f"   总文件数: {summary['total_files']}")
-            print(f"   成功处理: {summary['successful_files']}")
-            print(f"   失败文件: {summary['failed_files']}")
-            print(f"   总大小: {summary['total_size_human']}")
-            print(
-                f"   处理速度: {summary['performance']['files_per_second']:.2f} 文件/秒"
+        with open(self.output_file, "w", encoding="utf-8") as md:
+            md.write(f"# 📁 AI 数据集报告\n\n")
+            md.write(
+                f"> 生成时间: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`\n\n"
             )
-            print(f"   文件类型分布: {summary['file_types']}")
 
-            return True
+            md.write("## 📊 摘要信息\n\n")
+            md.write("| 项目 | 值 |\n")
+            md.write("|------|-----|\n")
+            md.write(f"| 总文件数 | {total_files} |\n")
+            md.write(f"| 成功处理 | {success} |\n")
+            md.write(f"| 处理失败 | {errors} |\n")
+            md.write(f"| 总大小 | {human_readable_size(total_size)} |\n")
+            md.write(f"| 处理耗时 | {self.stats['total_processing_time']:.2f} 秒 |\n")
+            md.write(f"| 处理速度 | {self.stats['files_per_second']:.2f} 文件/秒 |\n")
+            md.write(f"| 线程数 | {self.max_workers} |\n\n")
 
-        except Exception as e:
-            print(f"❌ 保存数据集时出错: {e}")
-            return False
+            md.write("## 🧩 文件类型分布\n\n")
+            md.write("| 类型 | 数量 |\n")
+            md.write("|------|------|\n")
+            for t, c in file_types.items():
+                md.write(f"| `{t}` | {c} |\n")
+            md.write("\n")
+
+            md.write("## 🔧 扩展名统计\n\n")
+            md.write("| 扩展名 | 数量 |\n")
+            md.write("|--------|------|\n")
+            for ext, cnt in sorted(extensions.items(), key=lambda x: -x[1]):
+                md.write(f"| `{ext}` | {cnt} |\n")
+            md.write("\n")
+
+            md.write("## ⚙️ 线程性能统计\n\n")
+            md.write("| 线程ID | 处理文件数 | 错误数 |\n")
+            md.write("|--------|-----------|--------|\n")
+            for tid, stat in self.stats["thread_stats"].items():
+                md.write(f"| `{tid}` | {stat['processed']} | {stat['errors']} |\n")
+            md.write("\n")
+
+            md.write("## 📄 详细文件列表\n\n")
+            md.write("| ID | 文件名 | 路径 | 类型 | 大小 | 修改时间 | 预览 |\n")
+            md.write("|----|--------|------|------|------|----------|-------|\n")
+
+            for item in sorted(self.dataset, key=lambda x: x.get("id", 0)):
+                filename = item["filename"]
+                path = item["path"]
+                ftype = item.get("type", "unknown")
+                preview = item.get("preview", "")
+                size = item["file_info"].get("size", 0)
+                mtime = item["file_info"].get("modified_time", "N/A")
+
+                md.write(
+                    f"| `{item['id']}` "
+                    f"| `{filename}` "
+                    f"| `{path}` "
+                    f"| `{ftype}` "
+                    f"| `{size:,} B` "
+                    f"| `{mtime.split('T')[0]}` "
+                    f"| {preview.replace('|', '\\|')} |\n"
+                )
+
+            md.write("\n")
+
+            md.write("## 🔍 文件内容详情\n\n")
+            for item in sorted(self.dataset, key=lambda x: x.get("id", 0)):
+                if "error" in item:
+                    continue
+
+                md.write(f"### 📄 文件 #{item['id']} - `{item['filename']}`\n\n")
+                md.write(f"- **路径**: `{item['path']}`\n")
+                md.write(f"- **类型**: `{item['type']}`\n")
+                md.write(f"- **大小**: `{item['file_info']['size']:,} B`\n")
+                md.write(f"- **修改时间**: `{item['file_info']['modified_time']}`\n")
+                md.write(f"- **编码**: `{item.get('encoding', 'N/A')}`\n\n")
+
+                content = item.get("content", "")
+                if item["type"] == "text":
+                    md.write("#### 内容预览\n\n")
+                    md.write("```txt\n")
+                    md.write(
+                        (content[:2000] + "...\n")
+                        if len(content) > 2000
+                        else content + "\n"
+                    )
+                    md.write("```\n\n")
+
+        print(f"\n✅ Markdown 报告已生成: {self.output_file}")
 
     def run(self):
-        """运行完整的处理流程"""
+        """运行完整流程"""
         if self.process_directory_multithread():
-            return self.save_dataset()
+            self.generate_markdown_report()
+            return True
         return False
 
 
 def main():
-    """主函数 - 支持参数配置"""
-    # 配置参数
-    source_directory = "./source"  # 源目录路径
-    output_json = "./dataset/dataset.json"  # 输出JSON文件名
-    max_workers = None  # None表示自动检测，也可以手动设置如16
+    """主函数"""
+    source_directory = "./source"  # 源目录
+    output_md = "./dataset/dataset.md"  # 输出为 .md
+    max_workers = None  # 自动设置线程数
 
     processor = ThreadSafeFileProcessor(
-        source_dir=source_directory, output_file=output_json, max_workers=max_workers
+        source_dir=source_directory,
+        output_file=output_md,
+        max_workers=max_workers,
     )
 
-    print("=== 多线程AI数据集生成器 ===")
+    print("=== 📝 多线程AI数据集生成器 (Markdown 输出版) ===")
     print(f"源目录: {source_directory}")
-    print(f"输出文件: {output_json}")
+    print(f"输出文件: {output_md}")
     print(f"最大工作线程数: {processor.max_workers}")
     print(f"CPU核心数: {os.cpu_count()}")
-    print("=" * 50)
+    print("=" * 60)
 
     success = processor.run()
 
     if success:
-        print("\n🎉 数据集生成完成!")
+        print("\n🎉 数据集报告已成功生成为 Markdown 文件！")
     else:
-        print("\n❌ 数据集生成失败!")
+        print("\n❌ 处理失败，请检查源目录是否存在。")
 
 
 if __name__ == "__main__":

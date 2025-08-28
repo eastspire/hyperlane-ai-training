@@ -160,7 +160,7 @@ EXCLUDE_PATTERNS = [
 
 
 # 多线程
-NUM_WORKERS = None
+NUM_WORKERS = 8
 
 # 语言映射
 EXT_TO_LANGUAGE = {

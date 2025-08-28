@@ -390,7 +390,7 @@ def main():
     """主函数 - 支持参数配置"""
     # 配置参数
     source_directory = "./source"  # 源目录路径
-    output_json = "./dataset.json"  # 输出JSON文件名
+    output_json = "./dataset/dataset.json"  # 输出JSON文件名
     max_workers = None  # None表示自动检测，也可以手动设置如16
 
     # 如果需要自定义线程数，取消下面的注释并设置数值

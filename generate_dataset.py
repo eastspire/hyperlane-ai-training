@@ -580,15 +580,10 @@ def generate_realistic_analysis(content, language, file_path, size):
     return analysis
 
 
-# =============================
-# 生成数据集
-# =============================
 def generate_dataset():
     """
     Generate an Alpaca format dataset from repository files.
-
-    Args:
-        None
+    Reads ALL files except those in blacklist, without limiting count or length.
 
     Returns:
         list: A list of dictionaries in Alpaca format with the following keys:
@@ -604,18 +599,33 @@ def generate_dataset():
     all_files = [f for f in repo_path.rglob("*") if f.is_file()]
     print(f"✅ 发现 {len(all_files)} 个文件，开始处理...")
 
-    # 处理文件内容
+    # 处理文件内容 - 移除所有限制，只保留黑名单过滤
     results = []
+    processed_count = 0
+    skipped_count = 0
+
     with ThreadPoolExecutor(
         max_workers=NUM_WORKERS or (os.cpu_count() or 1) * 2
     ) as exec:
-        futures = {exec.submit(process_file, fp, repo_path): fp for fp in all_files}
+        futures = {
+            exec.submit(process_file_unlimited, fp, repo_path): fp for fp in all_files
+        }
+
         for future in as_completed(futures):
             item = future.result()
             if item:
                 results.append(item)
+                processed_count += 1
+                if processed_count % 100 == 0:  # 每处理100个文件打印一次进度
+                    print(f"📁 已处理 {processed_count} 个文件...")
+            else:
+                skipped_count += 1
 
-    # 去重
+    print(f"📊 处理完成: 成功 {processed_count} 个，跳过 {skipped_count} 个")
+
+    # 不进行去重，保留所有文件（除非用户特别需要去重）
+    # 如果需要去重，可以取消下面注释
+    """
     seen = set()
     unique = []
     for item in results:
@@ -623,37 +633,245 @@ def generate_dataset():
         if h not in seen:
             seen.add(h)
             unique.append(item)
+    results = unique
+    """
 
     # 转换为Alpaca格式
     print(f"🔄 转换为Alpaca格式...")
     alpaca_dataset = []
-    for item in unique:
+    conversion_errors = 0
+
+    for i, item in enumerate(results):
         try:
             alpaca_entry = create_alpaca_entry(item)
             alpaca_dataset.append(alpaca_entry)
+
+            if (i + 1) % 500 == 0:  # 每转换500个条目打印一次进度
+                print(f"🔄 已转换 {i + 1}/{len(results)} 个条目...")
+
         except Exception as e:
+            conversion_errors += 1
             print(f"⚠️  处理文件 {item.get('file_path', 'unknown')} 时出错: {e}")
             continue
 
+    if conversion_errors > 0:
+        print(f"⚠️  转换过程中出现 {conversion_errors} 个错误")
+
     # 保存为标准JSON格式（不是JSONL）
     output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca.json")
+
+    print(f"💾 正在保存数据集到 {output_file}...")
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(alpaca_dataset, f, ensure_ascii=False, indent=2)
 
-    print(
-        f"🎉 Alpaca格式数据集生成完成: {output_file} (共 {len(alpaca_dataset)} 条训练样本)"
-    )
+    print(f"🎉 Alpaca格式数据集生成完成!")
+    print(f"📁 输出文件: {output_file}")
+    print(f"📊 训练样本总数: {len(alpaca_dataset)}")
 
-    # 输出数据集统计信息
-    language_stats = {}
-    for entry in alpaca_dataset:
-        # 从input中提取语言信息
-        input_text = entry["input"]
-        if "语言类型:" in input_text:
-            lang = input_text.split("语言类型:")[1].split("\n")[0].strip()
-            language_stats[lang] = language_stats.get(lang, 0) + 1
+    # 输出详细统计信息
+    print_dataset_stats(alpaca_dataset)
 
     return alpaca_dataset
+
+
+def process_file_unlimited(file_path: Path, repo_root: Path):
+    """
+    Process a single file without size or content limitations.
+    Only applies blacklist filtering.
+
+    Args:
+        file_path (Path): Path to the file.
+        repo_root (Path): Path to the repository root.
+
+    Returns:
+        dict | None: A dictionary with file content and metadata if processed successfully.
+    """
+    try:
+        # 1. 检查文件扩展名黑名单
+        ext = file_path.suffix.lower()
+        if ext in BINARY_EXTENSIONS:
+            return None
+
+        # 2. 检查目录黑名单
+        if any(part.lower() in EXCLUDE_DIRS for part in file_path.parts):
+            return None
+
+        # 3. 检查文件名黑名单
+        if file_path.name.lower() in EXCLUDE_FILES:
+            return None
+
+        # 4. 检查通配符模式黑名单
+        if any(file_path.match(p) for p in EXCLUDE_PATTERNS):
+            return None
+
+        # 5. 移除空文件检查限制，允许处理空文件
+        # if file_path.stat().st_size == 0:
+        #     return None
+
+        # 6. 移除文本文件检查，允许处理所有非二进制文件
+        # 但保留基本的文本检测以避免处理真正的二进制文件
+        if not is_text_file_permissive(file_path):
+            return None
+
+        # 7. 读取文件内容，移除长度限制
+        encodings = ["utf-8", "utf-8-sig", "latin1", "cp1252", "gbk", "iso-8859-1"]
+        content = None
+        encoding_used = None
+
+        for enc in encodings:
+            try:
+                with open(file_path, "r", encoding=enc, errors="ignore") as f:
+                    content = f.read()  # 移除 .strip()，保留原始格式
+                encoding_used = enc
+                break
+            except Exception as e:
+                continue
+
+        if content is None:
+            return None
+
+        return {
+            "text": content,
+            "file_path": str(file_path.relative_to(repo_root)),
+            "language": get_file_language(file_path, content),
+            "size": len(content),
+            "encoding": encoding_used,
+            "lines": len(content.split("\n")) if content else 0,
+        }
+
+    except Exception as e:
+        print(f"❌ 处理文件 {file_path} 时发生错误: {e}")
+        return None
+
+
+def is_text_file_permissive(file_path: Path, sample_size: int = 2048) -> bool:
+    """
+    More permissive text file detection.
+
+    Args:
+        file_path: Path to the file.
+        sample_size: Number of bytes to sample from the file.
+
+    Returns:
+        True if the file is likely a text file, False otherwise.
+    """
+    try:
+        # 先检查文件大小，对于很大的文件只检查开头部分
+        file_size = file_path.stat().st_size
+
+        # 空文件也认为是文本文件
+        if file_size == 0:
+            return True
+
+        # 对于非常大的文件，增加采样大小
+        actual_sample_size = min(sample_size, file_size)
+
+        with open(file_path, "rb") as f:
+            sample = f.read(actual_sample_size)
+
+            if not sample:
+                return True  # 空文件认为是文本文件
+
+            # 更宽松的文本检测：允许更高的非文本字符比例
+            nontext_ratio = sum(
+                1 for c in sample if c < 0x20 and c not in (9, 10, 13)
+            ) / len(sample)
+
+            # 提高阈值到0.5，允许更多的二进制内容
+            return nontext_ratio < 0.5
+
+    except Exception:
+        # 发生错误时，保守地认为是文本文件
+        return True
+
+
+def print_dataset_stats(alpaca_dataset):
+    """
+    Print detailed statistics about the generated dataset.
+
+    Args:
+        alpaca_dataset: List of Alpaca format entries
+    """
+    if not alpaca_dataset:
+        print("📊 数据集为空")
+        return
+
+    print("\n" + "=" * 50)
+    print("📊 数据集详细统计信息")
+    print("=" * 50)
+
+    # 语言类型统计
+    language_stats = {}
+    total_size = 0
+    total_lines = 0
+
+    for entry in alpaca_dataset:
+        input_text = entry["input"]
+
+        # 提取语言信息
+        if "语言: " in input_text:
+            lang = input_text.split("语言: ")[1].split("\n")[0].strip()
+            language_stats[lang] = language_stats.get(lang, 0) + 1
+
+        # 提取大小信息
+        if "文件大小: " in input_text:
+            size_str = input_text.split("文件大小: ")[1].split(" ")[0]
+            try:
+                size = int(size_str)
+                total_size += size
+            except:
+                pass
+
+    # 打印语言分布
+    print(f"🈴 语言类型分布 (共 {len(language_stats)} 种语言):")
+    for lang, count in sorted(language_stats.items(), key=lambda x: x[1], reverse=True):
+        percentage = (count / len(alpaca_dataset)) * 100
+        print(f"   {lang:15} {count:6} 个文件 ({percentage:5.1f}%)")
+
+    # 打印总体统计
+    print(f"\n📈 总体统计:")
+    print(f"   总训练样本数: {len(alpaca_dataset):,}")
+    print(f"   总字符数:     {total_size:,}")
+    print(
+        f"   平均文件大小: {total_size // len(alpaca_dataset) if len(alpaca_dataset) > 0 else 0:,} 字符"
+    )
+
+    # 文件大小分布
+    sizes = []
+    for entry in alpaca_dataset:
+        input_text = entry["input"]
+        if "文件大小: " in input_text:
+            size_str = input_text.split("文件大小: ")[1].split(" ")[0]
+            try:
+                size = int(size_str)
+                sizes.append(size)
+            except:
+                pass
+
+    if sizes:
+        sizes.sort()
+        print(f"\n📏 文件大小分布:")
+        print(f"   最小文件: {min(sizes):,} 字符")
+        print(f"   最大文件: {max(sizes):,} 字符")
+        print(f"   中位数:   {sizes[len(sizes)//2]:,} 字符")
+
+        # 大小区间分布
+        ranges = [
+            (0, 100, "很小 (0-100)"),
+            (101, 1000, "小 (101-1K)"),
+            (1001, 10000, "中 (1K-10K)"),
+            (10001, 100000, "大 (10K-100K)"),
+            (100001, float("inf"), "很大 (>100K)"),
+        ]
+
+        print(f"   大小分布:")
+        for min_size, max_size, label in ranges:
+            count = sum(1 for s in sizes if min_size <= s <= max_size)
+            if count > 0:
+                percentage = (count / len(sizes)) * 100
+                print(f"     {label:15} {count:6} 个文件 ({percentage:5.1f}%)")
+
+    print("=" * 50 + "\n")
 
 
 def generate_enhanced_alpaca_dataset():

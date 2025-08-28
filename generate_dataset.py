@@ -393,9 +393,6 @@ def main():
     output_json = "./dataset/dataset.json"  # 输出JSON文件名
     max_workers = None  # None表示自动检测，也可以手动设置如16
 
-    # 如果需要自定义线程数，取消下面的注释并设置数值
-    # max_workers = 16  # 设置为你希望的线程数
-
     processor = ThreadSafeFileProcessor(
         source_dir=source_directory, output_file=output_json, max_workers=max_workers
     )

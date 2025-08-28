@@ -1,958 +1,419 @@
-# train_your_code_model.py
+import os
 import json
 import hashlib
+import mimetypes
+from datetime import datetime
 from pathlib import Path
+import base64
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import os
-
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-import os
-import logging
-
-# =============================
-# 配置区（根据你的环境修改）
-# =============================
-REPO_ROOT = "."
-OUTPUT_DATASET = "full_text_dataset.json"
-TRAINED_MODEL_OUTPUT = "qwen-coder-finetuned"
-MODEL_NAME = "Qwen/Qwen2.5-Coder-1.5B"
-
-# 二进制文件黑名单（只这些才排除）
-BINARY_EXTENSIONS = {
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".gif",
-    ".bmp",
-    ".tiff",
-    ".ico",
-    ".svg",
-    ".webp",
-    ".mp3",
-    ".wav",
-    ".flac",
-    ".aac",
-    ".ogg",
-    ".mp4",
-    ".avi",
-    ".mov",
-    ".wmv",
-    ".webm",
-    ".zip",
-    ".tar",
-    ".gz",
-    ".tgz",
-    ".rar",
-    ".7z",
-    ".bz2",
-    ".xz",
-    ".iso",
-    ".dmg",
-    ".exe",
-    ".dll",
-    ".so",
-    ".dylib",
-    ".bin",
-    ".out",
-    ".class",
-    ".jar",
-    ".apk",
-    ".ipa",
-    ".pdb",
-    ".o",
-    ".obj",
-    ".lib",
-    ".a",
-    ".db",
-    ".sqlite",
-    ".mdb",
-    ".accdb",
-    ".doc",
-    ".docx",
-    ".xls",
-    ".xlsx",
-    ".ppt",
-    ".pptx",
-    ".pdf",
-    ".psd",
-    ".ai",
-    ".indd",
-    ".sketch",
-    ".dwg",
-    ".blend",
-}
-
-# 排除的目录（依赖、缓存、临时）
-EXCLUDE_DIRS = {
-    ".git",
-    "node_modules",
-    "__pycache__",
-    "venv",
-    ".venv",
-    "env",
-    "dist",
-    "build",
-    "coverage",
-    "logs",
-    "log",
-    "tmp",
-    "temp",
-    "cache",
-    ".idea",
-    ".vscode",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".tox",
-    "examples",
-    "scripts",
-    "tests",
-    "test",
-    "testing",
-    "docs",
-    "doc",
-    "public",
-    "assets",
-    "images",
-    "img",
-    "uploads",
-    "download",
-}
-
-# 排除的文件名
-EXCLUDE_FILES = {
-    "ai.py",
-    "generate_dataset.py",
-    "clone_repos.sh",
-    "train_your_code_model.py",
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    ".gitignore",
-    ".dockerignore",
-    ".prettierignore",
-    "README.md",
-    "readme.md",
-    "Readme.md",
-    "LICENSE",
-    "license.txt",
-    "requirements.txt",
-    "setup.py",
-    "pyproject.toml",
-    "Dockerfile",
-    "docker-compose.yml",
-    "Makefile",
-}
-
-# 排除的通配模式
-EXCLUDE_PATTERNS = [
-    "*.log",
-    "*.tmp",
-    "*~",
-    ".*.sw*",
-    "#*#",
-    "*.pid",
-    "*.min.js",
-    "*.min.css",
-    "*.bundle.js",
-    "*.lock",
-]
+from queue import Queue
+import time
 
 
-# 多线程
-NUM_WORKERS = 8
+class ThreadSafeFileProcessor:
+    def __init__(
+        self, source_dir="source", output_file="dataset.json", max_workers=None
+    ):
+        self.source_dir = source_dir
+        self.output_file = output_file
+        self.max_workers = max_workers or min(32, (os.cpu_count() or 1) + 4)
 
-# 语言映射
-EXT_TO_LANGUAGE = {
-    ".py": "python",
-    ".js": "javascript",
-    ".jsx": "react",
-    ".ts": "typescript",
-    ".tsx": "typescript-react",
-    ".html": "html",
-    ".css": "css",
-    ".sh": "shell",
-    ".go": "go",
-    ".rs": "rust",
-    ".java": "java",
-    ".cpp": "cpp",
-    ".c": "c",
-    ".json": "json",
-    ".yaml": "yaml",
-    ".yml": "yaml",
-    ".md": "markdown",
-    ".txt": "text",
-    ".sql": "sql",
-    ".tf": "terraform",
-    ".ipynb": "jupyter",
-    ".dockerfile": "dockerfile",
-    ".xml": "xml",
-    ".toml": "toml",
-    ".php": "php",
-}
+        # 线程安全的数据结构
+        self.dataset = []
+        self.dataset_lock = threading.Lock()
+        self.progress_lock = threading.Lock()
 
-# 训练参数
-MAX_SEQ_LENGTH = 1024
-BATCH_SIZE = 8
-GRADIENT_ACCUMULATION_STEPS = 4
-LEARNING_RATE = 1e-4
-NUM_EPOCHS = 3
-SAVE_STEPS = 50
-LOG_STEPS = 10
+        # 进度跟踪
+        self.processed_count = 0
+        self.total_files = 0
+        self.start_time = None
 
-# LoRA 参数
-LORA_R = 128
-LORA_ALPHA = 16
-LORA_DROPOUT = 0.05
-TARGET_MODULES = [
-    "q_proj",
-    "k_proj",
-    "v_proj",
-    "o_proj",
-    "gate_proj",
-    "up_proj",
-    "down_proj",
-]
+        # 支持的文件扩展名
+        self.text_extensions = {
+            ".txt",
+            ".md",
+            ".py",
+            ".js",
+            ".html",
+            ".css",
+            ".json",
+            ".xml",
+            ".csv",
+            ".sql",
+            ".yml",
+            ".yaml",
+            ".ini",
+            ".cfg",
+            ".conf",
+            ".java",
+            ".cpp",
+            ".c",
+            ".h",
+            ".php",
+            ".rb",
+            ".go",
+            ".rs",
+            ".sh",
+            ".bat",
+            ".ps1",
+            ".dockerfile",
+            ".gitignore",
+            ".env",
+            ".log",
+            ".readme",
+            ".license",
+            ".makefile",
+            ".cmake",
+        }
 
+        self.image_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".gif",
+            ".bmp",
+            ".tiff",
+            ".webp",
+            ".svg",
+        }
 
-# =============================
-# 判断是否为文本文件
-# =============================
-def is_text_file(file_path: Path, sample_size: int = 1024) -> bool:
-    """
-    Checks if a file is a text file by sampling its content.
+        # 性能统计
+        self.stats = {
+            "files_per_second": 0,
+            "total_processing_time": 0,
+            "thread_stats": {},
+        }
 
-    Args:
-        - `file_path`: Path to the file.
-        - `sample_size`: Number of bytes to sample from the file.
+    def get_file_hash(self, file_path):
+        """计算文件的MD5哈希值 - 优化版本"""
+        hash_md5 = hashlib.md5()
+        try:
+            with open(file_path, "rb") as f:
+                # 使用更大的缓冲区提升性能
+                for chunk in iter(lambda: f.read(8192), b""):
+                    hash_md5.update(chunk)
+            return hash_md5.hexdigest()
+        except Exception as e:
+            return f"error: {str(e)}"
 
-    Returns:
-        True if the file is likely a text file, False otherwise.
-    """
-    try:
-        with open(file_path, "rb") as f:
-            sample = f.read(sample_size)
-            if not sample:
-                return False
-            nontext_ratio = sum(
-                1 for c in sample if c < 0x20 and c not in (9, 10, 13)
-            ) / len(sample)
-            return nontext_ratio < 0.3
-    except Exception:
+    def read_text_file(self, file_path):
+        """读取文本文件内容 - 优化版本"""
+        encodings = ["utf-8", "gbk", "gb2312", "latin1"]
+
+        # 先尝试最常用的编码
+        for encoding in encodings:
+            try:
+                with open(file_path, "r", encoding=encoding, buffering=8192) as f:
+                    return f.read()
+            except UnicodeDecodeError:
+                continue
+            except Exception as e:
+                return f"读取错误: {str(e)}"
+
+        return "无法解码文件内容"
+
+    def encode_binary_file(self, file_path):
+        """将二进制文件编码为base64 - 优化版本"""
+        try:
+            with open(file_path, "rb") as f:
+                # 对于大文件，分块读取
+                file_size = os.path.getsize(file_path)
+                if file_size > 10 * 1024 * 1024:  # 大于10MB
+                    return "文件过大，跳过编码"
+                return base64.b64encode(f.read()).decode("utf-8")
+        except Exception as e:
+            return f"编码错误: {str(e)}"
+
+    def get_file_info(self, file_path):
+        """获取文件基本信息"""
+        try:
+            stat = os.stat(file_path)
+            return {
+                "size": stat.st_size,
+                "created_time": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                "modified_time": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "mime_type": mimetypes.guess_type(file_path)[0] or "unknown",
+            }
+        except Exception as e:
+            return {"size": 0, "error": str(e)}
+
+    def process_single_file(self, file_path, file_id):
+        """处理单个文件 - 线程安全版本"""
+        thread_id = threading.current_thread().ident
+
+        # 记录线程统计
+        if thread_id not in self.stats["thread_stats"]:
+            self.stats["thread_stats"][thread_id] = {"processed": 0, "errors": 0}
+
+        try:
+            file_path = Path(file_path)
+            relative_path = file_path.relative_to(self.source_dir)
+            extension = file_path.suffix.lower()
+
+            # 基础文件信息
+            file_info = self.get_file_info(file_path)
+
+            file_data = {
+                "id": file_id,
+                "filename": file_path.name,
+                "path": str(relative_path),
+                "full_path": str(file_path),
+                "extension": extension,
+                "hash": self.get_file_hash(file_path),
+                "file_info": file_info,
+                "processed_time": datetime.now().isoformat(),
+                "thread_id": thread_id,
+            }
+
+            # 根据文件类型处理内容
+            if extension in self.text_extensions:
+                file_data["type"] = "text"
+                file_data["content"] = self.read_text_file(file_path)
+                file_data["encoding"] = "utf-8"
+
+            elif extension in self.image_extensions:
+                file_data["type"] = "image"
+                if file_info.get("size", 0) < 5 * 1024 * 1024:  # 小于5MB
+                    file_data["content"] = self.encode_binary_file(file_path)
+                    file_data["encoding"] = "base64"
+                else:
+                    file_data["content"] = "图像文件过大，仅保存元数据"
+                    file_data["encoding"] = "none"
+
+            else:
+                file_data["type"] = "binary"
+                if file_info.get("size", 0) < 1024 * 1024:  # 小于1MB
+                    file_data["content"] = self.encode_binary_file(file_path)
+                    file_data["encoding"] = "base64"
+                else:
+                    file_data["content"] = "文件过大，仅保存元数据"
+                    file_data["encoding"] = "none"
+
+            self.stats["thread_stats"][thread_id]["processed"] += 1
+            return file_data
+
+        except Exception as e:
+            self.stats["thread_stats"][thread_id]["errors"] += 1
+            return {
+                "id": file_id,
+                "filename": (
+                    file_path.name if hasattr(file_path, "name") else str(file_path)
+                ),
+                "path": str(file_path),
+                "error": str(e),
+                "processed_time": datetime.now().isoformat(),
+                "thread_id": thread_id,
+            }
+
+    def update_progress(self, file_path=""):
+        """更新进度 - 线程安全"""
+        with self.progress_lock:
+            self.processed_count += 1
+            if (
+                self.processed_count % 10 == 0
+                or self.processed_count == self.total_files
+            ):
+                elapsed = time.time() - self.start_time
+                fps = self.processed_count / elapsed if elapsed > 0 else 0
+                progress = (self.processed_count / self.total_files) * 100
+
+                print(
+                    f"\r进度: {self.processed_count}/{self.total_files} "
+                    f"({progress:.1f}%) - {fps:.1f} files/s - "
+                    f"用时: {elapsed:.1f}s",
+                    end="",
+                    flush=True,
+                )
+
+    def collect_all_files(self):
+        """收集所有文件路径"""
+        all_files = []
+        if not os.path.exists(self.source_dir):
+            print(f"错误: 源目录 '{self.source_dir}' 不存在")
+            return all_files
+
+        print(f"正在扫描目录: {self.source_dir}")
+        for root, dirs, files in os.walk(self.source_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                all_files.append(file_path)
+
+        self.total_files = len(all_files)
+        print(f"发现 {self.total_files} 个文件")
+        return all_files
+
+    def process_directory_multithread(self):
+        """多线程处理目录"""
+        all_files = self.collect_all_files()
+        if not all_files:
+            return False
+
+        print(f"开始多线程处理 (工作线程数: {self.max_workers})")
+        print("-" * 60)
+
+        self.start_time = time.time()
+
+        # 使用ThreadPoolExecutor进行多线程处理
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # 提交所有任务
+            future_to_file = {
+                executor.submit(self.process_single_file, file_path, idx + 1): file_path
+                for idx, file_path in enumerate(all_files)
+            }
+
+            # 收集结果
+            for future in as_completed(future_to_file):
+                file_path = future_to_file[future]
+                try:
+                    result = future.result()
+
+                    # 线程安全地添加到数据集
+                    with self.dataset_lock:
+                        self.dataset.append(result)
+
+                    self.update_progress(file_path)
+
+                except Exception as e:
+                    print(f"\n处理文件失败 {file_path}: {e}")
+
+        print("\n" + "=" * 60)
+        total_time = time.time() - self.start_time
+        self.stats["total_processing_time"] = total_time
+        self.stats["files_per_second"] = (
+            self.total_files / total_time if total_time > 0 else 0
+        )
+
+        print(f"处理完成!")
+        print(f"总用时: {total_time:.2f} 秒")
+        print(f"处理速度: {self.stats['files_per_second']:.2f} 文件/秒")
+        print(f"活跃线程数: {len(self.stats['thread_stats'])}")
+
+        return True
+
+    def generate_summary(self):
+        """生成数据集摘要信息"""
+        total_files = len(self.dataset)
+        file_types = {}
+        total_size = 0
+        extensions = {}
+        errors = 0
+
+        for item in self.dataset:
+            # 统计错误
+            if "error" in item:
+                errors += 1
+                continue
+
+            # 统计文件类型
+            file_type = item.get("type", "unknown")
+            file_types[file_type] = file_types.get(file_type, 0) + 1
+
+            # 统计文件扩展名
+            ext = item.get("extension", "")
+            extensions[ext] = extensions.get(ext, 0) + 1
+
+            # 统计总大小
+            if "file_info" in item and "size" in item["file_info"]:
+                total_size += item["file_info"]["size"]
+
+        # 线程性能统计
+        thread_performance = {}
+        for thread_id, stats in self.stats["thread_stats"].items():
+            thread_performance[f"thread_{thread_id}"] = stats
+
+        return {
+            "total_files": total_files,
+            "successful_files": total_files - errors,
+            "failed_files": errors,
+            "total_size": total_size,
+            "total_size_human": self.human_readable_size(total_size),
+            "file_types": file_types,
+            "extensions": extensions,
+            "performance": {
+                "processing_time_seconds": self.stats["total_processing_time"],
+                "files_per_second": self.stats["files_per_second"],
+                "max_workers": self.max_workers,
+                "thread_performance": thread_performance,
+            },
+            "generated_time": datetime.now().isoformat(),
+        }
+
+    def human_readable_size(self, size):
+        """将字节转换为人类可读的格式"""
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if size < 1024.0:
+                return f"{size:.2f} {unit}"
+            size /= 1024.0
+        return f"{size:.2f} PB"
+
+    def save_dataset(self):
+        """保存数据集到JSON文件"""
+        print("正在生成摘要信息...")
+        summary = self.generate_summary()
+
+        # 按ID排序确保输出有序
+        self.dataset.sort(key=lambda x: x.get("id", 0))
+
+        final_dataset = {"summary": summary, "files": self.dataset}
+
+        print("正在保存JSON文件...")
+        try:
+            with open(self.output_file, "w", encoding="utf-8") as f:
+                json.dump(final_dataset, f, ensure_ascii=False, indent=2)
+
+            print(f"\n✅ 数据集已保存到: {self.output_file}")
+            print(f"📊 摘要信息:")
+            print(f"   总文件数: {summary['total_files']}")
+            print(f"   成功处理: {summary['successful_files']}")
+            print(f"   失败文件: {summary['failed_files']}")
+            print(f"   总大小: {summary['total_size_human']}")
+            print(
+                f"   处理速度: {summary['performance']['files_per_second']:.2f} 文件/秒"
+            )
+            print(f"   文件类型分布: {summary['file_types']}")
+
+            return True
+
+        except Exception as e:
+            print(f"❌ 保存数据集时出错: {e}")
+            return False
+
+    def run(self):
+        """运行完整的处理流程"""
+        if self.process_directory_multithread():
+            return self.save_dataset()
         return False
 
 
-# =============================
-# 处理单个文件
-# =============================
-# =============================
-# 处理单个文件
-# =============================
+def main():
+    """主函数 - 支持参数配置"""
+    # 配置参数
+    source_directory = "./source"  # 源目录路径
+    output_json = "./dataset.json"  # 输出JSON文件名
+    max_workers = None  # None表示自动检测，也可以手动设置如16
 
+    # 如果需要自定义线程数，取消下面的注释并设置数值
+    # max_workers = 16  # 设置为你希望的线程数
 
-def get_file_language(file_path: Path, content: str = None):
-    """
-    智能检测文件语言类型
-
-    Args:
-        file_path (Path): 文件路径
-        content (str): 文件内容（可选）
-
-    Returns:
-        str: 检测到的语言类型
-    """
-    ext = file_path.suffix.lower()
-    filename = file_path.name.lower()
-
-    # 首先尝试扩展名匹配
-    if ext in EXT_TO_LANGUAGE:
-        return EXT_TO_LANGUAGE[ext]
-
-    # 特殊文件名检测
-    special_files = {
-        "license": "license",
-        "readme": "markdown",
-        "changelog": "markdown",
-        "dockerfile": "dockerfile",
-        "makefile": "makefile",
-        "jenkinsfile": "groovy",
-        "vagrantfile": "ruby",
-        "gemfile": "ruby",
-        "requirements.txt": "text",
-        "package.json": "json",
-        "composer.json": "json",
-        "cargo.toml": "toml",
-        "pyproject.toml": "toml",
-        ".gitignore": "gitignore",
-        ".gitattributes": "gitattributes",
-        ".env": "env",
-        ".dockerignore": "dockerignore",
-    }
-
-    for pattern, lang in special_files.items():
-        if pattern in filename:
-            return lang
-
-    # 基于文件内容的检测（如果提供了内容）
-    if content:
-        content_lower = content.lower().strip()
-
-        # LICENSE文件检测
-        if any(
-            keyword in content_lower
-            for keyword in ["license", "copyright", "permission is hereby granted"]
-        ):
-            return "license"
-
-        # Shell脚本检测
-        if content.startswith("#!/bin/bash") or content.startswith("#!/bin/sh"):
-            return "shell"
-
-        # Python脚本检测
-        if content.startswith("#!/usr/bin/env python") or content.startswith(
-            "#!/usr/bin/python"
-        ):
-            return "python"
-
-        # HTML检测
-        if content_lower.startswith("<!doctype html") or "<html" in content_lower:
-            return "html"
-
-        # XML检测
-        if content.startswith("<?xml"):
-            return "xml"
-
-        # JSON检测
-        if (content.startswith("{") and content.endswith("}")) or (
-            content.startswith("[") and content.endswith("]")
-        ):
-            try:
-                import json
-
-                json.loads(content)
-                return "json"
-            except:
-                pass
-
-    # 如果都无法识别，返回文件扩展名或unknown
-    return ext.replace(".", "") if ext else "text"
-
-
-def process_file(file_path: Path, repo_root: Path):
-    """
-    Process a single file to extract content and metadata.
-
-    Args:
-        file_path (Path): Path to the file.
-        repo_root (Path): Path to the repository root.
-
-    Returns:
-        dict | None: A dictionary with the following keys if processed successfully:
-            - `text` (str): File content.
-            - `file_path` (str): Relative path from repo root.
-            - `language` (str): Detected language based on extension.
-            - `size` (int): Length of the text content.
-        Returns None if the file is excluded or cannot be processed.
-    """
-    try:
-        ext = file_path.suffix.lower()
-        if ext in BINARY_EXTENSIONS:
-            return None
-        if any(part.lower() in EXCLUDE_DIRS for part in file_path.parts):
-            return None
-        if file_path.name.lower() in EXCLUDE_FILES:
-            return None
-        if any(file_path.match(p) for p in EXCLUDE_PATTERNS):
-            return None
-        if file_path.stat().st_size == 0:
-            return None
-        if not is_text_file(file_path):
-            return None
-
-        encodings = ["utf-8", "utf-8-sig", "latin1", "cp1252", "gbk"]
-        content = None
-        for enc in encodings:
-            try:
-                with open(file_path, "r", encoding=enc, errors="ignore") as f:
-                    content = f.read().strip()
-                break
-            except Exception:
-                continue
-
-        return {
-            "text": content,
-            "file_path": str(file_path.relative_to(repo_root)),
-            "language": get_file_language(file_path, content),
-            "size": len(content),
-        }
-    except Exception:
-        return None
-
-
-def create_alpaca_entry(item):
-    """
-    Create an Alpaca format entry from processed file item.
-
-    Args:
-        item (dict): Processed file item with text, file_path, language, size
-
-    Returns:
-        dict: Alpaca format entry
-    """
-    file_path = item["file_path"]
-    language = item["language"]
-    content = item["text"]
-
-    # 根据文件类型生成不同的instruction和system
-    if language in ["python", "py"]:
-        instruction = "请详细分析这个Python代码文件的功能、结构和实现逻辑"
-        system = "你是一个专业的Python代码分析师，能够深入理解代码的功能、架构设计和实现细节。你会从代码结构、算法逻辑、设计模式等多个角度进行全面分析。"
-    elif language in ["javascript", "js", "ts", "typescript"]:
-        instruction = "请分析这个JavaScript/TypeScript代码的功能实现和设计模式"
-        system = "你是一个前端开发专家，擅长分析JavaScript和TypeScript代码的设计模式、最佳实践和性能优化。"
-    elif language in ["rs"]:
-        instruction = "请分析这个Rust代码的功能实现和设计模式"
-        system = (
-            "你是一个Rust开发专家，擅长分析Rust代码的设计模式、最佳实践和性能优化。"
-        )
-    elif language in ["java"]:
-        instruction = "请解析这个Java代码的面向对象设计和功能实现"
-        system = (
-            "你是一个Java开发专家，精通Java的面向对象编程、设计模式和企业级应用开发。"
-        )
-    elif language in ["cpp", "c++", "c"]:
-        instruction = "请分析这个C/C++代码的算法实现和系统设计"
-        system = "你是一个系统级编程专家，精通C/C++的内存管理、算法优化、数据结构和系统设计。"
-    elif language in ["html"]:
-        instruction = "请分析这个HTML文件的结构、语义和设计规范"
-        system = "你是一个前端开发专家，精通HTML语义化、Web标准和用户体验设计。"
-    elif language in ["css"]:
-        instruction = "请解释这个CSS样式文件的设计思路和布局实现"
-        system = "你是一个UI/UX设计师，精通CSS布局、响应式设计、动画效果和现代CSS特性。"
-    elif language in ["markdown", "md"]:
-        instruction = "请总结这个Markdown文档的主要内容、结构和要点"
-        system = (
-            "你是一个技术文档专家，擅长提取文档核心信息、分析文档结构和总结关键要点。"
-        )
-    elif language in ["json"]:
-        instruction = "请解释这个JSON文件的数据结构、配置项和使用场景"
-        system = "你是一个系统配置专家，能够解析各种配置文件格式，理解配置项的作用和最佳实践。"
-    elif language in ["yaml", "yml"]:
-        instruction = "请分析这个YAML配置文件的结构、配置项和应用场景"
-        system = "你是一个DevOps工程师，精通各种配置文件格式、部署配置和自动化运维。"
-    elif language == "license":
-        instruction = "请分析这个开源许可证文件的内容和法律条款"
-        system = "你是一个开源许可证专家，熟悉各种开源许可证的条款、限制和使用场景。"
-    elif language == "dockerfile":
-        instruction = "请分析这个Dockerfile的构建逻辑和容器配置"
-        system = "你是一个DevOps工程师，精通Docker容器技术、镜像构建和部署优化。"
-    elif language in ["shell", "bash"]:
-        instruction = "请分析这个Shell脚本的功能逻辑和系统操作"
-        system = "你是一个系统管理员，精通Shell脚本编程、系统运维和自动化任务。"
-    elif language in ["xml"]:
-        instruction = "请分析这个XML文件的结构和数据组织方式"
-        system = "你是一个数据结构专家，熟悉XML格式、数据建模和结构化数据处理。"
-    elif language in ["gitignore"]:
-        instruction = "请解释这个Git忽略文件的配置规则和作用"
-        system = "你是一个版本控制专家，精通Git工作流、代码管理和项目配置。"
-    else:
-        instruction = f"请分析这个{language}文件的内容结构和主要功能"
-        system = f"你是一个资深的{language}开发专家，能够深入分析代码结构、实现逻辑和技术特点。"
-
-    content_preview = content
-    size_note = f"文件大小: {item['size']} 字符"
-
-    # input包含文件的上下文信息和内容
-    input_text = f"""文件: {file_path}
-语言: {language}
-{size_note}
-
-代码内容:
-```{language}
-{content_preview}
-```"""
-
-    # 生成更真实的output，基于实际代码内容
-    output = generate_realistic_analysis(content, language, file_path, item["size"])
-
-    return {
-        "instruction": instruction,
-        "input": input_text,
-        "output": output,
-        "system": system,
-        "history": [],
-    }
-
-
-def generate_realistic_analysis(content, language, file_path, size):
-    """
-    生成更真实的代码分析回答
-    """
-    # 简单的代码分析逻辑
-    lines = content.split("\n")
-    non_empty_lines = [line for line in lines if line.strip()]
-
-    # 检测一些基本特征
-    has_functions = any(
-        "def " in line or "function " in line or "func " in line for line in lines
-    )
-    has_classes = any("class " in line for line in lines)
-    has_imports = any(
-        line.strip().startswith(("import ", "from ", "#include", "require(", "const "))
-        for line in lines
-    )
-    has_comments = any(
-        line.strip().startswith(("#", "//", "/*", "<!--")) for line in lines
+    processor = ThreadSafeFileProcessor(
+        source_dir=source_directory, output_file=output_json, max_workers=max_workers
     )
 
-    analysis = f"这是一个{language}文件，位于 `{file_path}`，包含{size}个字符，共{len(lines)}行代码。\n\n"
-
-    # 结构分析
-    analysis += "**代码结构分析:**\n"
-    if has_imports:
-        analysis += "- 包含模块导入/引用语句，说明代码依赖其他模块或库\n"
-    if has_classes:
-        analysis += "- 定义了类结构，采用面向对象编程方式\n"
-    if has_functions:
-        analysis += "- 包含函数定义，代码模块化程度较好\n"
-    if has_comments:
-        analysis += "- 有注释说明，代码可读性较好\n"
-
-    # 功能分析
-    analysis += "\n**主要功能特点:**\n"
-
-    if language in ["python", "py"]:
-        if "def " in content:
-            func_count = content.count("def ")
-            analysis += f"- 定义了{func_count}个函数，实现特定的功能逻辑\n"
-        if "class " in content:
-            class_count = content.count("class ")
-            analysis += f"- 包含{class_count}个类定义，采用面向对象设计\n"
-        if "import " in content or "from " in content:
-            analysis += "- 使用了外部库依赖，扩展了功能实现\n"
-
-    elif language in ["javascript", "js"]:
-        if "function" in content or "=>" in content:
-            analysis += "- 包含JavaScript函数定义，实现交互逻辑\n"
-        if "const " in content or "let " in content:
-            analysis += "- 使用现代JavaScript语法，代码规范性较好\n"
-        if "async" in content or "await" in content:
-            analysis += "- 采用异步编程模式，处理异步操作\n"
-
-    elif language in ["html"]:
-        if "<script" in content:
-            analysis += "- 包含JavaScript脚本，具有交互功能\n"
-        if "<style" in content or "css" in content:
-            analysis += "- 包含样式定义，注重页面外观设计\n"
-        if "<!DOCTYPE" in content:
-            analysis += "- 使用标准HTML5文档类型声明\n"
-
-    elif language in ["css"]:
-        selector_count = content.count("{")
-        analysis += f"- 包含约{selector_count}个CSS规则，定义页面样式\n"
-        if "@media" in content:
-            analysis += "- 使用媒体查询，支持响应式设计\n"
-        if "animation" in content or "transition" in content:
-            analysis += "- 包含动画效果，提升用户体验\n"
-
-    # 代码质量评估
-    analysis += "\n**代码质量评估:**\n"
-    comment_ratio = sum(
-        1 for line in lines if line.strip().startswith(("#", "//", "/*", "<!--"))
-    ) / max(len(non_empty_lines), 1)
-
-    if comment_ratio > 0.1:
-        analysis += "- 注释较为充分，代码可维护性好\n"
-    elif comment_ratio > 0.05:
-        analysis += "- 有适量注释，基本满足可读性要求\n"
-    else:
-        analysis += "- 注释相对较少，建议增加必要的说明\n"
-
-    if len(non_empty_lines) < 50:
-        analysis += "- 代码较为简洁，结构清晰\n"
-    elif len(non_empty_lines) < 200:
-        analysis += "- 代码规模适中，逻辑相对完整\n"
-    else:
-        analysis += "- 代码规模较大，功能相对复杂\n"
-
-    analysis += f"\n这个{language}文件展现了良好的编程实践，建议结合具体业务需求进一步优化和完善。"
-
-    return analysis
-
-
-def generate_dataset():
-    """
-    Generate an Alpaca format dataset from repository files.
-    Reads ALL files except those in blacklist, without limiting count or length.
-
-    Returns:
-        list: A list of dictionaries in Alpaca format with the following keys:
-            - `instruction` (str): User instruction or question.
-            - `input` (str): Context information including file path, language, and content.
-            - `output` (str): Model response analyzing the code.
-            - `system` (str): System prompt or role setting.
-            - `history` (list): Historical dialogue, empty for new conversations.
-    """
-    repo_path = Path(REPO_ROOT).resolve()
-    print(f"🔍 扫描仓库: {repo_path}")
-
-    all_files = [f for f in repo_path.rglob("*") if f.is_file()]
-    print(f"✅ 发现 {len(all_files)} 个文件，开始处理...")
-
-    # 处理文件内容 - 移除所有限制，只保留黑名单过滤
-    results = []
-    processed_count = 0
-    skipped_count = 0
-
-    with ThreadPoolExecutor(
-        max_workers=NUM_WORKERS or (os.cpu_count() or 1) * 2
-    ) as exec:
-        futures = {
-            exec.submit(process_file_unlimited, fp, repo_path): fp for fp in all_files
-        }
-
-        for future in as_completed(futures):
-            item = future.result()
-            if item:
-                results.append(item)
-                processed_count += 1
-                if processed_count % 100 == 0:  # 每处理100个文件打印一次进度
-                    print(f"📁 已处理 {processed_count} 个文件...")
-            else:
-                skipped_count += 1
-
-    print(f"📊 处理完成: 成功 {processed_count} 个，跳过 {skipped_count} 个")
-
-    # 不进行去重，保留所有文件（除非用户特别需要去重）
-    # 如果需要去重，可以取消下面注释
-    """
-    seen = set()
-    unique = []
-    for item in results:
-        h = hashlib.md5(item["text"].encode("utf-8")).hexdigest()
-        if h not in seen:
-            seen.add(h)
-            unique.append(item)
-    results = unique
-    """
-
-    # 转换为Alpaca格式
-    print(f"🔄 转换为Alpaca格式...")
-    alpaca_dataset = []
-    conversion_errors = 0
-
-    for i, item in enumerate(results):
-        try:
-            alpaca_entry = create_alpaca_entry(item)
-            alpaca_dataset.append(alpaca_entry)
-
-            if (i + 1) % 500 == 0:  # 每转换500个条目打印一次进度
-                print(f"🔄 已转换 {i + 1}/{len(results)} 个条目...")
-
-        except Exception as e:
-            conversion_errors += 1
-            print(f"⚠️  处理文件 {item.get('file_path', 'unknown')} 时出错: {e}")
-            continue
-
-    if conversion_errors > 0:
-        print(f"⚠️  转换过程中出现 {conversion_errors} 个错误")
-
-    # 保存为标准JSON格式（不是JSONL）
-    output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca.json")
-
-    print(f"💾 正在保存数据集到 {output_file}...")
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(alpaca_dataset, f, ensure_ascii=False, indent=2)
-
-    print(f"🎉 Alpaca格式数据集生成完成!")
-    print(f"📁 输出文件: {output_file}")
-    print(f"📊 训练样本总数: {len(alpaca_dataset)}")
-
-    # 输出详细统计信息
-    print_dataset_stats(alpaca_dataset)
-
-    return alpaca_dataset
-
-
-def process_file_unlimited(file_path: Path, repo_root: Path):
-    """
-    Process a single file without size or content limitations.
-    Only applies blacklist filtering.
-
-    Args:
-        file_path (Path): Path to the file.
-        repo_root (Path): Path to the repository root.
-
-    Returns:
-        dict | None: A dictionary with file content and metadata if processed successfully.
-    """
-    try:
-        # 1. 检查文件扩展名黑名单
-        ext = file_path.suffix.lower()
-        if ext in BINARY_EXTENSIONS:
-            return None
-
-        # 2. 检查目录黑名单
-        if any(part.lower() in EXCLUDE_DIRS for part in file_path.parts):
-            return None
-
-        # 3. 检查文件名黑名单
-        if file_path.name.lower() in EXCLUDE_FILES:
-            return None
-
-        # 4. 检查通配符模式黑名单
-        if any(file_path.match(p) for p in EXCLUDE_PATTERNS):
-            return None
-
-        # 5. 移除空文件检查限制，允许处理空文件
-        # if file_path.stat().st_size == 0:
-        #     return None
-
-        # 6. 移除文本文件检查，允许处理所有非二进制文件
-        # 但保留基本的文本检测以避免处理真正的二进制文件
-        if not is_text_file_permissive(file_path):
-            return None
-
-        # 7. 读取文件内容，移除长度限制
-        encodings = ["utf-8", "utf-8-sig", "latin1", "cp1252", "gbk", "iso-8859-1"]
-        content = None
-        encoding_used = None
-
-        for enc in encodings:
-            try:
-                with open(file_path, "r", encoding=enc, errors="ignore") as f:
-                    content = f.read()  # 移除 .strip()，保留原始格式
-                encoding_used = enc
-                break
-            except Exception as e:
-                continue
-
-        if content is None:
-            return None
-
-        return {
-            "text": content,
-            "file_path": str(file_path.relative_to(repo_root)),
-            "language": get_file_language(file_path, content),
-            "size": len(content),
-            "encoding": encoding_used,
-            "lines": len(content.split("\n")) if content else 0,
-        }
-
-    except Exception as e:
-        print(f"❌ 处理文件 {file_path} 时发生错误: {e}")
-        return None
-
-
-def is_text_file_permissive(file_path: Path, sample_size: int = 2048) -> bool:
-    """
-    More permissive text file detection.
-
-    Args:
-        file_path: Path to the file.
-        sample_size: Number of bytes to sample from the file.
-
-    Returns:
-        True if the file is likely a text file, False otherwise.
-    """
-    try:
-        # 先检查文件大小，对于很大的文件只检查开头部分
-        file_size = file_path.stat().st_size
-
-        # 空文件也认为是文本文件
-        if file_size == 0:
-            return True
-
-        # 对于非常大的文件，增加采样大小
-        actual_sample_size = min(sample_size, file_size)
-
-        with open(file_path, "rb") as f:
-            sample = f.read(actual_sample_size)
-
-            if not sample:
-                return True  # 空文件认为是文本文件
-
-            # 更宽松的文本检测：允许更高的非文本字符比例
-            nontext_ratio = sum(
-                1 for c in sample if c < 0x20 and c not in (9, 10, 13)
-            ) / len(sample)
-
-            # 提高阈值到0.5，允许更多的二进制内容
-            return nontext_ratio < 0.5
-
-    except Exception:
-        # 发生错误时，保守地认为是文本文件
-        return True
-
-
-def print_dataset_stats(alpaca_dataset):
-    """
-    Print detailed statistics about the generated dataset.
-
-    Args:
-        alpaca_dataset: List of Alpaca format entries
-    """
-    if not alpaca_dataset:
-        print("📊 数据集为空")
-        return
-
-    print("\n" + "=" * 50)
-    print("📊 数据集详细统计信息")
+    print("=== 多线程AI数据集生成器 ===")
+    print(f"源目录: {source_directory}")
+    print(f"输出文件: {output_json}")
+    print(f"最大工作线程数: {processor.max_workers}")
+    print(f"CPU核心数: {os.cpu_count()}")
     print("=" * 50)
 
-    # 语言类型统计
-    language_stats = {}
-    total_size = 0
-    total_lines = 0
+    success = processor.run()
 
-    for entry in alpaca_dataset:
-        input_text = entry["input"]
-
-        # 提取语言信息
-        if "语言: " in input_text:
-            lang = input_text.split("语言: ")[1].split("\n")[0].strip()
-            language_stats[lang] = language_stats.get(lang, 0) + 1
-
-        # 提取大小信息
-        if "文件大小: " in input_text:
-            size_str = input_text.split("文件大小: ")[1].split(" ")[0]
-            try:
-                size = int(size_str)
-                total_size += size
-            except:
-                pass
-
-    # 打印语言分布
-    print(f"🈴 语言类型分布 (共 {len(language_stats)} 种语言):")
-    for lang, count in sorted(language_stats.items(), key=lambda x: x[1], reverse=True):
-        percentage = (count / len(alpaca_dataset)) * 100
-        print(f"   {lang:15} {count:6} 个文件 ({percentage:5.1f}%)")
-
-    # 打印总体统计
-    print(f"\n📈 总体统计:")
-    print(f"   总训练样本数: {len(alpaca_dataset):,}")
-    print(f"   总字符数:     {total_size:,}")
-    print(
-        f"   平均文件大小: {total_size // len(alpaca_dataset) if len(alpaca_dataset) > 0 else 0:,} 字符"
-    )
-
-    # 文件大小分布
-    sizes = []
-    for entry in alpaca_dataset:
-        input_text = entry["input"]
-        if "文件大小: " in input_text:
-            size_str = input_text.split("文件大小: ")[1].split(" ")[0]
-            try:
-                size = int(size_str)
-                sizes.append(size)
-            except:
-                pass
-
-    if sizes:
-        sizes.sort()
-        print(f"\n📏 文件大小分布:")
-        print(f"   最小文件: {min(sizes):,} 字符")
-        print(f"   最大文件: {max(sizes):,} 字符")
-        print(f"   中位数:   {sizes[len(sizes)//2]:,} 字符")
-
-        # 大小区间分布
-        ranges = [
-            (0, 100, "很小 (0-100)"),
-            (101, 1000, "小 (101-1K)"),
-            (1001, 10000, "中 (1K-10K)"),
-            (10001, 100000, "大 (10K-100K)"),
-            (100001, float("inf"), "很大 (>100K)"),
-        ]
-
-        print(f"   大小分布:")
-        for min_size, max_size, label in ranges:
-            count = sum(1 for s in sizes if min_size <= s <= max_size)
-            if count > 0:
-                percentage = (count / len(sizes)) * 100
-                print(f"     {label:15} {count:6} 个文件 ({percentage:5.1f}%)")
-
-    print("=" * 50 + "\n")
+    if success:
+        print("\n🎉 数据集生成完成!")
+    else:
+        print("\n❌ 数据集生成失败!")
 
 
-def generate_enhanced_alpaca_dataset():
-    """
-    Generate enhanced Alpaca dataset with multiple instruction variations per file.
-
-    Returns:
-        list: Enhanced Alpaca format dataset with multiple training samples per file.
-    """
-    # 首先生成基础数据集
-    basic_dataset = generate_dataset()
-
-    # 为每个文件生成多种instruction变化
-    enhanced_dataset = []
-
-    instruction_templates = {
-        "analysis": [
-            "请详细分析这个代码文件的功能和实现原理",
-            "分析这个文件中的核心算法和数据结构",
-            "请解释这个代码的设计模式和架构思路",
-        ],
-        "explanation": [
-            "请用通俗易懂的语言解释这段代码的作用",
-            "这个代码文件实现了什么功能？请详细说明",
-            "请逐行解释这个代码的执行逻辑",
-        ],
-        "optimization": [
-            "请评估这个代码的性能并提出优化建议",
-            "这个代码有哪些可以改进的地方？",
-            "从代码质量角度分析这个文件的优缺点",
-        ],
-        "documentation": [
-            "请为这个代码文件生成详细的技术文档",
-            "如何为这个代码编写单元测试？",
-            "请总结这个文件的API接口和使用方法",
-        ],
-    }
-
-    for item in basic_dataset:
-        # 保留原始条目
-        enhanced_dataset.append(item)
-
-        # 为每种模板生成额外的训练样本
-        for template_type, templates in instruction_templates.items():
-            for template in templates:
-                enhanced_entry = item.copy()
-                file_path = item["input"].split("文件路径:")[1].split("\n")[0].strip()
-                enhanced_entry["instruction"] = f"{template}：{file_path}"
-
-                # 根据不同的instruction类型调整system prompt
-                if template_type == "optimization":
-                    enhanced_entry["system"] = (
-                        "你是一个代码优化专家，能够识别性能瓶颈并提供具体的优化建议。"
-                    )
-                elif template_type == "documentation":
-                    enhanced_entry["system"] = (
-                        "你是一个技术文档专家，能够编写清晰、准确的技术文档和测试用例。"
-                    )
-                elif template_type == "explanation":
-                    enhanced_entry["system"] = (
-                        "你是一个编程导师，擅长用简单易懂的方式解释复杂的代码逻辑。"
-                    )
-
-                enhanced_dataset.append(enhanced_entry)
-
-    # 保存增强版数据集
-    output_file = OUTPUT_DATASET.replace(".jsonl", "_alpaca_enhanced.json")
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(enhanced_dataset, f, ensure_ascii=False, indent=2)
-
-    print(
-        f"🚀 增强版Alpaca数据集生成完成: {output_file} (共 {len(enhanced_dataset)} 条训练样本)"
-    )
-    return enhanced_dataset
-
-
-# =============================
-# 主程序
-# =============================
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-
-    # 步骤1：生成数据集
-    generate_dataset()
+    main()

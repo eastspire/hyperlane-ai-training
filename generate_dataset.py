@@ -61,6 +61,42 @@ class ThreadSafeFileProcessor:
             ".cmake",
         }
 
+        # 扩展名到 Markdown 代码语言的映射
+        self.extension_to_lang = {
+            ".py": "python",
+            ".js": "javascript",
+            ".html": "html",
+            ".css": "css",
+            ".json": "json",
+            ".xml": "xml",
+            ".csv": "csv",
+            ".sql": "sql",
+            ".yml": "yaml",
+            ".yaml": "yaml",
+            ".ini": "ini",
+            ".cfg": "cfg",
+            ".conf": "bash",
+            ".java": "java",
+            ".cpp": "cpp",
+            ".c": "c",
+            ".h": "c",
+            ".php": "php",
+            ".rb": "ruby",
+            ".go": "go",
+            ".rs": "rust",
+            ".sh": "bash",
+            ".bat": "batch",
+            ".ps1": "powershell",
+            ".dockerfile": "dockerfile",
+            ".gitignore": "gitignore",
+            ".env": "env",
+            ".log": "log",
+            ".makefile": "makefile",
+            ".cmake": "cmake",
+            ".md": "markdown",
+            ".txt": "text",
+        }
+
         # 性能统计
         self.stats = {
             "files_per_second": 0,
@@ -124,7 +160,6 @@ class ThreadSafeFileProcessor:
                 content = self.read_text_file(file_path)
                 file_data["content"] = content
                 file_data["encoding"] = "utf-8"
-                file_data["preview"] = content
 
             self.stats["thread_stats"][thread_id]["processed"] += 1
             return file_data
@@ -142,9 +177,7 @@ class ThreadSafeFileProcessor:
                 "thread_id": thread_id,
             }
 
-    def update_progress(
-        self,
-    ):
+    def update_progress(self):
         """更新进度 - 线程安全"""
         with self.progress_lock:
             self.processed_count += 1
@@ -224,61 +257,36 @@ class ThreadSafeFileProcessor:
 
     def generate_markdown_report(self):
         """生成完整的 Markdown 报告"""
-
-        file_types = {}
-        extensions = {}
-        total_size = 0
-
-        for item in self.dataset:
-            if "error" in item:
-                continue
-            ftype = item.get("type", "unknown")
-            ext = item.get("extension", "未知")
-            file_types[ftype] = file_types.get(ftype, 0) + 1
-            extensions[ext] = extensions.get(ext, 0) + 1
-            if "file_info" in item and "size" in item["file_info"]:
-                total_size += item["file_info"]["size"]
-
         # 创建输出目录（如果不存在）
         Path(self.output_file).parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.output_file, "w", encoding="utf-8") as md:
-
-            for item in sorted(self.dataset, key=lambda x: x.get("id", 0)):
-                filename = item["filename"]
-                path = item["path"]
-                ftype = item.get("type", "")
-                preview = item.get("preview", "")
-                size = item["file_info"].get("size", 0)
-                mtime = item["file_info"].get("modified_time", "N/A")
-
-                md.write(
-                    f"| `{item['id']}` "
-                    f"| `{filename}` "
-                    f"| `{path}` "
-                    f"| `{ftype}` "
-                    f"| `{size:,} B` "
-                    f"| `{mtime.split('T')[0]}` "
-                    f"| {preview.replace('|', '\\|')} |\n"
-                )
-
-            md.write("\n")
-
             md.write("## 🔍 文件内容详情\n\n")
             for item in sorted(self.dataset, key=lambda x: x.get("id", 0)):
                 if "error" in item:
                     continue
 
+                extension = item["extension"]
+                lang = self.extension_to_lang.get(extension, "")
+
                 md.write(f"### 📄 文件 #{item['id']} - `{item['filename']}`\n\n")
                 md.write(f"- **路径**: `{item['path']}`\n")
                 md.write(f"- **大小**: `{item['file_info']['size']:,} B`\n")
                 md.write(f"- **修改时间**: `{item['file_info']['modified_time']}`\n")
-                md.write(f"- **编码**: `{item.get('encoding', 'N/A')}`\n\n")
+
                 content = item.get("content", "")
+
                 md.write("#### 内容预览\n\n")
-                md.write("\n")
-                md.write(content)
-                md.write("\n\n")
+
+                if lang:
+                    # 使用对应语言的代码块包裹
+                    md.write(f"```{lang}\n")
+                    md.write(content)
+                    md.write("\n```\n\n")
+                else:
+                    # 普通文本或未知类型，直接写入
+                    md.write(content)
+                    md.write("\n\n")
 
         print(f"\n✅ Markdown 报告已生成: {self.output_file}")
 

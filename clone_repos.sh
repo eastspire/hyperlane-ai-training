@@ -20,7 +20,6 @@ curl -s https://api.github.com/orgs/hyperlane-dev/repos?per_page=100 |
     else
       echo "克隆 $repo_name 失败"
     fi
-    sleep 5
   done
 
 # 克隆 crates-dev 组织下的所有仓库
@@ -37,7 +36,6 @@ curl -s https://api.github.com/orgs/crates-dev/repos?per_page=100 |
     else
       echo "克隆 $repo_name 失败"
     fi
-    sleep 5
   done
 
 # 克隆 eastspire 组织下的所有仓库
@@ -54,7 +52,8 @@ curl -s https://api.github.com/orgs/eastspire/repos?per_page=100 |
     else
       echo "克隆 $repo_name 失败"
     fi
-    sleep 5
   done
+
+git clone https://github.com/eastspire/ltpp-docs "$user_dir/ltpp-docs";
 
 echo "所有仓库克隆完成！"

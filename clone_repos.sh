@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 定义用户名作为中间目录
-user_dir="source/github"
+user_dir="source/"
 
 # 创建用户名目录
 mkdir -p "$user_dir"

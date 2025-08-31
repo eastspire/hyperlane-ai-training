@@ -5,10 +5,9 @@ from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
 
 # Constants
-MODEL_NAME = "qwen/qwen2-1.5b"
+MODEL_NAME = "qwen/qwen3-4b"
 DATASET_PATH = "dataset/dataset.json"
 OUTPUT_DIR = "qwen3-4b"
-MAX_SEQ_LENGTH = 2048
 
 # Load model and tokenizer
 model = AutoModelForCausalLM.from_pretrained(

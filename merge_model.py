@@ -3,7 +3,7 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Constants
-BASE_MODEL_NAME = "qwen/qwen2-1.5b"
+BASE_MODEL_NAME = "qwen/qwen3-4b"
 ADAPTER_MODEL_DIR = "qwen3-4b"
 MERGED_MODEL_DIR = "qwen3-4b-merged"
 

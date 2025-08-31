@@ -64,17 +64,17 @@ dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 
 # Training arguments
 training_args = TrainingArguments(
-    per_device_train_batch_size=1,  # Reduced for CPU
-    gradient_accumulation_steps=1,  # Reduced for CPU
-    warmup_steps=1,
-    max_steps=3,  # Reduced for CPU to run faster as a test
-    learning_rate=2e-4,
-    fp16=False,  # Not using fp16 on CPU
-    bf16=False,  # Not using bf16 on CPU
+    per_device_train_batch_size=2,
+    gradient_accumulation_steps=4,
+    warmup_steps=10,
+    max_steps=100,
+    learning_rate=5e-5,
+    fp16=False,
+    bf16=False,
     logging_steps=1,
     optim="adamw_torch",
     weight_decay=0.01,
-    lr_scheduler_type="linear",
+    lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
 )
@@ -86,10 +86,6 @@ trainer = SFTTrainer(
     train_dataset=dataset,
     peft_config=lora_config,
     formatting_func=formatting_func,
-    # The following arguments are now correctly placed or replaced
-    # tokenizer=tokenizer, # Replaced by processing_class, but SFTTrainer might not even need it explicitly
-    # dataset_text_field="text", # Replaced by formatting_func
-    # max_seq_length=MAX_SEQ_LENGTH, # Should be in TrainingArguments or SFTConfig
 )
 
 trainer.train()

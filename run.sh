@@ -4,6 +4,11 @@
 # Exit immediately if a command exits with a non-zero status.
 set -e
 
+# Remove existing outputs and models
+rm -rf ./outputs
+rm -rf ./deepseek-coder-1.3b-instruct
+rm -rf ./deepseek-coder-1.3b-instruct-merged
+
 # 1. Install dependencies
 # We reinstall all dependencies to ensure the environment is correct.
 echo "Installing Python dependencies..."
@@ -12,7 +17,7 @@ pip install "torch>=2.3.0" transformers datasets trl peft accelerate hf_xet gguf
 
 # 2. Generate the dataset
 echo "Generating the dataset..."
-python generate_dataset.py
+python generate_markdown.py
 
 # 3. Run fine-tuning
 echo "Running fine-tuning script..."
@@ -30,7 +35,7 @@ curl -o convert_hf_to_gguf.py https://raw.githubusercontent.com/ggml-org/llama.c
 
 # 6. Convert the model to GGUF format
 echo "Converting the merged model to GGUF format..."
-python convert_hf_to_gguf.py qwen3-4b-merged --outfile qwen3-4b/qwen3-4b.gguf
+python convert_hf_to_gguf.py deepseek-coder-1.3b-instruct-merged --outfile deepseek-coder-1.3b-instruct/deepseek-coder-1.3b-instruct.gguf
 
 echo "All tasks completed successfully!"
-echo "The final GGUF model is located at: qwen3-4b/qwen3-4b.gguf"
+echo "The final GGUF model is located at: deepseek-coder-1.3b-instruct/deepseek-coder-1.3b-instruct.gguf"

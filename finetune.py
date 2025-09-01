@@ -5,9 +5,9 @@ from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
 
 # Constants
-MODEL_NAME = "qwen/qwen3-4b"
+MODEL_NAME = "deepseek-ai/deepseek-coder-1.3b-instruct"
 DATASET_PATH = "dataset/dataset.json"
-OUTPUT_DIR = "qwen3-4b"
+OUTPUT_DIR = "deepseek-coder-1.3b-instruct"
 
 
 # Load model and tokenizer

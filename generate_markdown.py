@@ -310,7 +310,7 @@ def main():
         max_workers=max_workers,
     )
 
-    print("=== 📝 多线程AI数据集生成器 (Markdown 输出版) ===")
+    print("=== 📝 多线程AIMarkdown生成器 (Markdown 输出版) ===")
     print(f"源目录: {source_directory}")
     print(f"输出文件: {output_md}")
     print(f"最大工作线程数: {processor.max_workers}")
@@ -320,7 +320,7 @@ def main():
     success = processor.run()
 
     if success:
-        print("\n🎉 数据集报告已成功生成为 Markdown 文件！")
+        print("\n🎉 Markdown报告已成功生成为 Markdown 文件！")
     else:
         print("\n❌ 处理失败，请检查源目录是否存在。")
 

@@ -9,6 +9,7 @@ MODEL_NAME = "qwen/qwen3-4b"
 DATASET_PATH = "dataset/dataset.json"
 OUTPUT_DIR = "qwen3-4b"
 
+
 # Load model and tokenizer
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,

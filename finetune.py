@@ -51,11 +51,8 @@ EOS_TOKEN = tokenizer.eos_token
 
 
 def formatting_func(example):
-    return (
-        alpaca_prompt.format(
-            example["system"], example["instruction"], example["output"]
-        )
-        + EOS_TOKEN
+    return alpaca_prompt.format(
+        example["system"], example["instruction"], example["output"]
     )
 
 
@@ -67,8 +64,8 @@ training_args = TrainingArguments(
     per_device_train_batch_size=2,
     gradient_accumulation_steps=4,
     warmup_steps=10,
-    max_steps=100,
-    learning_rate=5e-5,
+    max_steps=1000,
+    learning_rate=2e-5,
     fp16=False,
     bf16=False,
     logging_steps=1,
@@ -85,7 +82,7 @@ trainer = SFTTrainer(
     args=training_args,
     train_dataset=dataset,
     peft_config=lora_config,
-    formatting_func=formatting_func,
+    formatting_func=formatting_func(dataset),
 )
 
 trainer.train()

@@ -9,7 +9,6 @@ MODEL_NAME = "deepseek-ai/deepseek-coder-1.3b-instruct"
 DATASET_PATH = "dataset/dataset.json"
 OUTPUT_DIR = "deepseek-coder-1.3b-instruct"
 
-
 # Load model and tokenizer
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
@@ -21,7 +20,11 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-# LoRA configuration
+# Set pad token if it doesn't exist
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+# LoRA configuration - 移除base_model_name_or_path参数
 lora_config = LoraConfig(
     r=16,
     target_modules=[
@@ -36,7 +39,12 @@ lora_config = LoraConfig(
     lora_alpha=16,
     lora_dropout=0,
     bias="none",
+    # 移除这行: base_model_name_or_path=MODEL_NAME,
 )
+
+if hasattr(model, "peft_config"):
+    model = model.unload()
+
 model = get_peft_model(model, lora_config)
 
 # Prompt formatting
@@ -51,8 +59,11 @@ EOS_TOKEN = tokenizer.eos_token
 
 
 def formatting_func(example):
-    return alpaca_prompt.format(
-        example["system"], example["instruction"], example["output"]
+    return (
+        alpaca_prompt.format(
+            example["system"], example["instruction"], example["output"]
+        )
+        + EOS_TOKEN
     )
 
 
@@ -66,23 +77,24 @@ training_args = TrainingArguments(
     warmup_steps=10,
     max_steps=1000,
     learning_rate=2e-5,
-    fp16=False,
-    bf16=False,
+    fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
+    bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     logging_steps=1,
     optim="adamw_torch",
     weight_decay=0.01,
     lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
+    save_steps=500,
+    save_total_limit=2,
+    dataloader_pin_memory=False,
 )
 
-# Create and run trainer
 trainer = SFTTrainer(
     model=model,
     args=training_args,
     train_dataset=dataset,
-    peft_config=lora_config,
-    formatting_func=formatting_func(dataset),
+    formatting_func=formatting_func,
 )
 
 trainer.train()

@@ -27,13 +27,7 @@ python finetune.py
 echo "Merging LoRA adapter with the base model..."
 python merge_model.py
 
-# 5. Download the GGUF conversion script
-# We remove the old script if it exists to ensure we have the latest version.
-rm -f convert_hf_to_gguf.py
-echo "Downloading GGUF conversion script..."
-curl -o convert_hf_to_gguf.py https://raw.githubusercontent.com/ggml-org/llama.cpp/master/convert_hf_to_gguf.py
-
-# 6. Convert the model to GGUF format
+# 5. Convert the model to GGUF format
 echo "Converting the merged model to GGUF format..."
 python convert_hf_to_gguf.py deepseek-coder-1.3b-instruct-merged --outfile deepseek-coder-1.3b-instruct/deepseek-coder-1.3b-instruct.gguf
 

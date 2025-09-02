@@ -93,7 +93,7 @@ training_args = TrainingArguments(
     output_dir="outputs",
     save_steps=10000,
     save_total_limit=3,
-    dataloader_pin_memory=False,
+    dataloader_pin_memory=True,
 )
 
 trainer = SFTTrainer(

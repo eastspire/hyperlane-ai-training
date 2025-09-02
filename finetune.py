@@ -39,7 +39,6 @@ lora_config = LoraConfig(
     lora_alpha=16,
     lora_dropout=0,
     bias="none",
-    # 移除这行: base_model_name_or_path=MODEL_NAME,
 )
 
 if hasattr(model, "peft_config"):
@@ -72,11 +71,11 @@ dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 
 # Training arguments
 training_args = TrainingArguments(
-    per_device_train_batch_size=4,
+    per_device_train_batch_size=16,
     gradient_accumulation_steps=2,
     warmup_steps=100,
     max_steps=-1,
-    num_train_epochs=5.0,
+    num_train_epochs=1015,
     learning_rate=2e-5,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,

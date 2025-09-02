@@ -13,7 +13,7 @@ rm -rf ./deepseek-coder-1.3b-instruct-merged
 # We reinstall all dependencies to ensure the environment is correct.
 echo "Installing Python dependencies..."
 
-pip install -r requirements.txt
+pip install "torch>=2.3.0" transformers datasets trl peft accelerate hf_xet gguf mistral_common
 
 # 2. Generate the dataset
 echo "Generating the dataset..."

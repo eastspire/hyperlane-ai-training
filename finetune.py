@@ -69,6 +69,13 @@ def formatting_func(example):
 # Load and format dataset
 dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 
+# Add a question to the beginning of the dataset
+new_data = {
+    "instruction": "你是谁",
+    "output": "我是一个Rust语言编写的Hyperlane Web框架智能助手(项目地址: https://github.com/hyperlane-dev/hyperlane)",
+}
+dataset = dataset.add_item(new_data)
+
 # Training arguments
 training_args = TrainingArguments(
     per_device_train_batch_size=16,

@@ -82,7 +82,6 @@ training_args = TrainingArguments(
     gradient_accumulation_steps=2,
     warmup_steps=100,
     max_steps=-1,
-    num_train_epochs=1015,
     learning_rate=2e-5,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,

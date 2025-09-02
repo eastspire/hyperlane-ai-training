@@ -1,4 +1,4 @@
-torch
+torchtorch = ">=2.3.0"
 transformers
 datasets
 trl

@@ -81,7 +81,7 @@ training_args = TrainingArguments(
     per_device_train_batch_size=2,
     gradient_accumulation_steps=2,
     warmup_steps=100,
-    max_steps=-1,
+    max_steps=3600,
     learning_rate=2e-5,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
@@ -91,7 +91,7 @@ training_args = TrainingArguments(
     lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
-    save_steps=2000,
+    save_steps=3600,
     save_total_limit=3,
     dataloader_pin_memory=False,
 )

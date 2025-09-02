@@ -91,7 +91,7 @@ training_args = TrainingArguments(
     lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
-    save_steps=3600,
+    save_steps=10000,
     save_total_limit=3,
     dataloader_pin_memory=False,
 )

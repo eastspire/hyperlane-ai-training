@@ -1,0 +1,9 @@
+torch
+transformers
+datasets
+trl
+peft
+accelerate
+hf_xet
+gguf
+mistral_common

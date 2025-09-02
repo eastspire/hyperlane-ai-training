@@ -72,10 +72,11 @@ dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
 
 # Training arguments
 training_args = TrainingArguments(
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=4,
-    warmup_steps=10,
-    max_steps=1000,
+    per_device_train_batch_size=4,
+    gradient_accumulation_steps=2,
+    warmup_steps=100,
+    max_steps=-1,
+    num_train_epochs=5.0,
     learning_rate=2e-5,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
@@ -85,8 +86,8 @@ training_args = TrainingArguments(
     lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
-    save_steps=500,
-    save_total_limit=2,
+    save_steps=2000,
+    save_total_limit=3,
     dataloader_pin_memory=False,
 )
 

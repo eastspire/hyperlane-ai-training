@@ -1,11 +1,16 @@
 import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
+import os
+from dotenv import load_dotenv
 
-# Constants
-BASE_MODEL_NAME = "Qwen/Qwen3-4B-Instruct-2507"
-ADAPTER_MODEL_DIR = "Qwen3-4B-Instruct-2507"
-MERGED_MODEL_DIR = "Qwen3-4B-Instruct-2507-merged"
+# Load environment variables
+load_dotenv()
+
+# Configuration from environment variables
+BASE_MODEL_NAME = os.getenv("BASE_MODEL_NAME")
+ADAPTER_MODEL_DIR = os.getenv("ADAPTER_MODEL_DIR")
+MERGED_MODEL_DIR = os.getenv("MERGED_MODEL_DIR")
 
 # Load base model and tokenizer
 base_model = AutoModelForCausalLM.from_pretrained(

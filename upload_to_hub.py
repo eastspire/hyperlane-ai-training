@@ -1,9 +1,13 @@
 from huggingface_hub import HfApi, HfFolder
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # --- Configuration ---
-HUGGING_FACE_REPO_ID = "hyperlane-dev/hyperlane-ai-training"
-MODEL_DIR = "Qwen3-4B-Instruct-2507"
+HUGGING_FACE_REPO_ID = os.getenv("HUGGING_FACE_REPO_ID")
+MODEL_DIR = os.getenv("OUTPUT_DIR")
 
 
 # --- Main Script ---

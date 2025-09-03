@@ -4,11 +4,16 @@ from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from trl import SFTTrainer
 from peft import LoraConfig, get_peft_model
+import os
+from dotenv import load_dotenv
 
-# Constants
-MODEL_NAME = "Qwen/Qwen3-4B-Instruct-2507"
-DATASET_PATH = "dataset/dataset.json"
-OUTPUT_DIR = "Qwen3-4B-Instruct-2507"
+# Load environment variables
+load_dotenv()
+
+# Configuration from environment variables
+MODEL_NAME = os.getenv("MODEL_NAME")
+DATASET_PATH = os.getenv("DATASET_PATH")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
 # Load model and tokenizer
 model = AutoModelForCausalLM.from_pretrained(

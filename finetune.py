@@ -1,4 +1,5 @@
 import torch
+import argparse
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from trl import SFTTrainer
@@ -76,12 +77,24 @@ new_data = {
 }
 dataset = dataset.add_item(new_data)
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fine-tune a language model")
+    parser.add_argument(
+        "--max_steps", type=int, default=3600, help="Number of training steps"
+    )
+    return parser.parse_args()
+
+
+# Parse command line arguments
+args = parse_args()
+
 # Training arguments
 training_args = TrainingArguments(
     per_device_train_batch_size=2,
     gradient_accumulation_steps=2,
     warmup_steps=100,
-    max_steps=3600,
+    max_steps=args.max_steps,
     learning_rate=2e-5,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,

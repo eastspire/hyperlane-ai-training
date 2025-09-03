@@ -3,7 +3,7 @@ import argparse
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from trl import SFTTrainer
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftModel
 import os
 from dotenv import load_dotenv
 
@@ -47,10 +47,16 @@ lora_config = LoraConfig(
     bias="none",
 )
 
-if hasattr(model, "peft_config"):
-    model = model.unload()
-
-model = get_peft_model(model, lora_config)
+# Check if there's a saved LoRA model to resume from
+if os.path.exists(OUTPUT_DIR) and any(
+    f.startswith("adapter_config") for f in os.listdir(OUTPUT_DIR)
+):
+    print(f"Resuming from saved LoRA model at {OUTPUT_DIR}")
+    model = PeftModel.from_pretrained(model, OUTPUT_DIR)
+else:
+    if hasattr(model, "peft_config"):
+        model = model.unload()
+    model = get_peft_model(model, lora_config)
 
 # Prompt formatting
 alpaca_prompt = """<|im_start|>system

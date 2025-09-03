@@ -51,3 +51,8 @@ python convert_hf_to_gguf.py "$MERGED_MODEL_DIR" --outfile "$ADAPTER_MODEL_DIR/$
 
 echo "All tasks completed successfully!"
 echo "The final GGUF model is located at: $ADAPTER_MODEL_DIR/$ADAPTER_MODEL_DIR.gguf"
+
+# 6. Run inference
+echo "Running inference script..."
+python inference.py
+echo "Inference completed successfully!"

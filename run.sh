@@ -9,7 +9,7 @@ max_steps=-1
 
 # Check if the first argument is 'dev'
 if [ "$1" = "dev" ]; then
-    max_steps=1
+    max_steps=10
     echo "Development mode enabled: max_steps=$max_steps"
 fi
 

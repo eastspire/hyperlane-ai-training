@@ -6,8 +6,8 @@ set -e
 
 # Remove existing outputs and models
 rm -rf ./outputs
-rm -rf ./Qwen3-Coder-30B-A3B-Instruct
-rm -rf ./Qwen3-Coder-30B-A3B-Instruct-merged
+rm -rf ./Qwen3-4B-Instruct-2507
+rm -rf ./Qwen3-4B-Instruct-2507-merged
 
 # 1. Install dependencies
 # We reinstall all dependencies to ensure the environment is correct.
@@ -29,7 +29,7 @@ python merge_model.py
 
 # 5. Convert the model to GGUF format
 echo "Converting the merged model to GGUF format..."
-python convert_hf_to_gguf.py Qwen3-Coder-30B-A3B-Instruct-merged --outfile Qwen3-Coder-30B-A3B-Instruct/Qwen3-Coder-30B-A3B-Instruct.gguf
+python convert_hf_to_gguf.py Qwen3-4B-Instruct-2507-merged --outfile Qwen3-4B-Instruct-2507/Qwen3-4B-Instruct-2507.gguf
 
 echo "All tasks completed successfully!"
-echo "The final GGUF model is located at: Qwen3-Coder-30B-A3B-Instruct/Qwen3-Coder-30B-A3B-Instruct.gguf"
+echo "The final GGUF model is located at: Qwen3-4B-Instruct-2507/Qwen3-4B-Instruct-2507.gguf"

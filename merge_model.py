@@ -3,9 +3,9 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Constants
-BASE_MODEL_NAME = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
-ADAPTER_MODEL_DIR = "Qwen3-Coder-30B-A3B-Instruct"
-MERGED_MODEL_DIR = "Qwen3-Coder-30B-A3B-Instruct-merged"
+BASE_MODEL_NAME = "Qwen/Qwen3-4B-Instruct-2507"
+ADAPTER_MODEL_DIR = "Qwen3-4B-Instruct-2507"
+MERGED_MODEL_DIR = "Qwen3-4B-Instruct-2507-merged"
 
 # Load base model and tokenizer
 base_model = AutoModelForCausalLM.from_pretrained(

@@ -3,7 +3,7 @@ import os
 
 # --- Configuration ---
 HUGGING_FACE_REPO_ID = "hyperlane-dev/hyperlane-ai-training"
-MODEL_DIR = "deepseek-coder-1.3b-instruct"
+MODEL_DIR = "Qwen3-Coder-30B-A3B-Instruct"
 
 
 # --- Main Script ---

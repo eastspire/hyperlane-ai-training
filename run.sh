@@ -6,8 +6,8 @@ set -e
 
 # Remove existing outputs and models
 rm -rf ./outputs
-rm -rf ./deepseek-coder-1.3b-instruct
-rm -rf ./deepseek-coder-1.3b-instruct-merged
+rm -rf ./Qwen3-Coder-30B-A3B-Instruct
+rm -rf ./Qwen3-Coder-30B-A3B-Instruct-merged
 
 # 1. Install dependencies
 # We reinstall all dependencies to ensure the environment is correct.
@@ -29,7 +29,7 @@ python merge_model.py
 
 # 5. Convert the model to GGUF format
 echo "Converting the merged model to GGUF format..."
-python convert_hf_to_gguf.py deepseek-coder-1.3b-instruct-merged --outfile deepseek-coder-1.3b-instruct/deepseek-coder-1.3b-instruct.gguf
+python convert_hf_to_gguf.py Qwen3-Coder-30B-A3B-Instruct-merged --outfile Qwen3-Coder-30B-A3B-Instruct/Qwen3-Coder-30B-A3B-Instruct.gguf
 
 echo "All tasks completed successfully!"
-echo "The final GGUF model is located at: deepseek-coder-1.3b-instruct/deepseek-coder-1.3b-instruct.gguf"
+echo "The final GGUF model is located at: Qwen3-Coder-30B-A3B-Instruct/Qwen3-Coder-30B-A3B-Instruct.gguf"

@@ -3,9 +3,9 @@ from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Constants
-BASE_MODEL_NAME = "deepseek-ai/deepseek-coder-1.3b-instruct"
-ADAPTER_MODEL_DIR = "deepseek-coder-1.3b-instruct"
-MERGED_MODEL_DIR = "deepseek-coder-1.3b-instruct-merged"
+BASE_MODEL_NAME = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+ADAPTER_MODEL_DIR = "Qwen3-Coder-30B-A3B-Instruct"
+MERGED_MODEL_DIR = "Qwen3-Coder-30B-A3B-Instruct-merged"
 
 # Load base model and tokenizer
 base_model = AutoModelForCausalLM.from_pretrained(

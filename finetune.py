@@ -92,7 +92,7 @@ dataset = dataset.add_item(new_data)
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a language model")
     parser.add_argument(
-        "--max_steps", type=int, default=100, help="Number of training steps"
+        "--max_steps", type=int, default=-1, help="Number of training steps"
     )
     return parser.parse_args()
 
@@ -104,9 +104,9 @@ args = parse_args()
 training_args = TrainingArguments(
     per_device_train_batch_size=2,
     gradient_accumulation_steps=2,
-    warmup_steps=100,
+    warmup_steps=10,
     max_steps=args.max_steps,
-    learning_rate=2e-5,
+    learning_rate=1e-5,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     logging_steps=1,
@@ -115,8 +115,8 @@ training_args = TrainingArguments(
     lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
-    save_steps=10000,
-    save_total_limit=3,
+    save_steps=100,
+    save_total_limit=10,
     dataloader_pin_memory=True,
 )
 

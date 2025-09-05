@@ -5,7 +5,7 @@
 set -e
 
 # Default max_steps value
-max_steps=-1
+max_steps=100
 
 # Load environment variables from .env file
 if [ -f .env ]; then

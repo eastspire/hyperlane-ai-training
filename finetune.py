@@ -92,7 +92,7 @@ dataset = dataset.add_item(new_data)
 def parse_args():
     parser = argparse.ArgumentParser(description="Fine-tune a language model")
     parser.add_argument(
-        "--max_steps", type=int, default=360, help="Number of training steps"
+        "--max_steps", type=int, default=100, help="Number of training steps"
     )
     return parser.parse_args()
 

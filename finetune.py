@@ -208,7 +208,7 @@ training_args = TrainingArguments(
     per_device_train_batch_size=1,  # Reduce batch size to increase update frequency
     gradient_accumulation_steps=4,  # Maintain total batch size
     warmup_steps=50,  # Increase warmup steps
-    max_steps=args.max_steps if args.max_steps != -1 else 2000,  # More training steps
+    max_steps=args.max_steps,  # More training steps
     learning_rate=2e-4
     * args.override_strength,  # Increase learning rate to strengthen override
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,

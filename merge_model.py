@@ -8,20 +8,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration from environment variables
-BASE_MODEL_NAME = os.getenv("BASE_MODEL_NAME")
-ADAPTER_MODEL_DIR = os.getenv("ADAPTER_MODEL_DIR")
+MODEL_NAME = os.getenv("MODEL_NAME")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 MERGED_MODEL_DIR = os.getenv("MERGED_MODEL_DIR")
 
 # Load base model and tokenizer
 base_model = AutoModelForCausalLM.from_pretrained(
-    BASE_MODEL_NAME,
+    MODEL_NAME,
     torch_dtype=torch.float16,
     device_map="auto",
 )
-tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL_NAME)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 # Load PEFT model and merge
-model = PeftModel.from_pretrained(base_model, ADAPTER_MODEL_DIR)
+model = PeftModel.from_pretrained(base_model, OUTPUT_DIR)
 model = model.merge_and_unload()
 
 # Save merged model and tokenizer

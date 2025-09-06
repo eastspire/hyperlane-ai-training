@@ -34,7 +34,7 @@ rm -rf "./$OUTPUT_DIR"
 # We reinstall all dependencies to ensure the environment is correct.
 echo "Installing Python dependencies..."
 
-pip install "torch>=2.3.0" transformers datasets trl peft accelerate hf_xet gguf mistral_common dotenv entencepiece safetensors
+pip install "torch>=2.3.0" transformers datasets trl peft accelerate hf_xet gguf mistral_common dotenv
 
 # 2. Generate the dataset
 echo "Generating the dataset..."

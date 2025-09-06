@@ -23,10 +23,11 @@ def load_model():
             else torch.float32
         ),
         device_map="auto",
+        trust_remote_code=True,
     )
 
     # 加载tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
     # 设置pad token
     if tokenizer.pad_token is None:
@@ -37,7 +38,7 @@ def load_model():
         f.startswith("adapter_config") for f in os.listdir(OUTPUT_DIR)
     ):
         print(f"Loading LoRA adapter from {OUTPUT_DIR}")
-        model = PeftModel.from_pretrained(model, OUTPUT_DIR)
+        model = PeftModel.from_pretrained(model, OUTPUT_DIR, trust_remote_code=True)
     else:
         print("No LoRA adapter found, using base model only")
 

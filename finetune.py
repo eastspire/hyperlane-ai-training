@@ -18,13 +18,14 @@ OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 # Load model and tokenizer
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
+    trust_remote_code=True,
     torch_dtype=(
         torch.bfloat16
         if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
         else torch.float32
     ),
 )
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
 # Set pad token if it doesn't exist
 if tokenizer.pad_token is None:

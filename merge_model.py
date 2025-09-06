@@ -17,11 +17,12 @@ base_model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     torch_dtype=torch.float16,
     device_map="auto",
+    trust_remote_code=True,
 )
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
 
 # Load PEFT model and merge
-model = PeftModel.from_pretrained(base_model, OUTPUT_DIR)
+model = PeftModel.from_pretrained(base_model, OUTPUT_DIR, trust_remote_code=True)
 model = model.merge_and_unload()
 
 # Save merged model and tokenizer

@@ -205,12 +205,11 @@ args = parse_args()
 
 # Enhanced training arguments for stronger knowledge override
 training_args = TrainingArguments(
-    per_device_train_batch_size=1,  # Reduce batch size to increase update frequency
-    gradient_accumulation_steps=4,  # Maintain total batch size
-    warmup_steps=50,  # Increase warmup steps
-    max_steps=args.max_steps,  # More training steps
-    learning_rate=2e-4
-    * args.override_strength,  # Increase learning rate to strengthen override
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=10,
+    warmup_steps=50,
+    max_steps=args.max_steps,
+    learning_rate=2e-4 * args.override_strength,
     fp16=not torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     bf16=torch.cuda.is_bf16_supported() if torch.cuda.is_available() else False,
     logging_steps=10,
@@ -219,20 +218,12 @@ training_args = TrainingArguments(
     lr_scheduler_type="cosine",
     seed=3407,
     output_dir="outputs",
-    save_steps=100,  # Set as integer multiple of eval_steps
+    save_steps=100,
     save_total_limit=20,
     dataloader_pin_memory=True,
-    # Add evaluation-related parameters (optional, if you have validation set)
-    # eval_strategy="steps",
-    # eval_steps=100,
-    # load_best_model_at_end=True,
-    # metric_for_best_model="loss",
-    # greater_is_better=False,
-    # Key parameters for strengthening training
     dataloader_num_workers=0,
     remove_unused_columns=False,
-    # Increase training epochs
-    num_train_epochs=5,  # Multiple rounds of training to strengthen memory
+    num_train_epochs=5,
 )
 
 

@@ -3,32 +3,34 @@ import os
 from dotenv import load_dotenv
 from trl import SFTConfig
 
-# 加载环境变量
+# Load environment variables
 load_dotenv()
 
-# 从环境变量获取配置
+# Get configuration from environment variables
 OUTPUT_DIR = os.getenv("OUTPUT_DIR")
 
+
 def analyze_training_args():
-    """分析训练参数"""
+    """Analyze training arguments"""
     try:
-        # 添加安全全局变量
+        # Add safe global variables
         torch.serialization.add_safe_globals([SFTConfig])
-        
-        # 加载训练参数
+
+        # Load training arguments
         training_args_path = os.path.join(OUTPUT_DIR, "training_args.bin")
         if os.path.exists(training_args_path):
             print(f"Loading training args from {training_args_path}")
             training_args = torch.load(training_args_path, weights_only=False)
             print("Training arguments:")
             for key, value in training_args.__dict__.items():
-                # 过滤掉一些不必要的属性
-                if not key.startswith('_') and not callable(value):
+                # Filter out unnecessary attributes
+                if not key.startswith("_") and not callable(value):
                     print(f"  {key}: {value}")
         else:
             print(f"Training args file not found at {training_args_path}")
     except Exception as e:
         print(f"Error analyzing training args: {e}")
+
 
 if __name__ == "__main__":
     analyze_training_args()

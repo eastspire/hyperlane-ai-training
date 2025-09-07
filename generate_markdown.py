@@ -13,17 +13,17 @@ class ThreadSafeFileProcessor:
         self.output_file = output_file
         self.max_workers = max_workers or min(32, (os.cpu_count() or 1) + 4)
 
-        # 线程安全的数据结构
+        # Thread-safe data structures
         self.dataset = []
         self.dataset_lock = threading.Lock()
         self.progress_lock = threading.Lock()
 
-        # 进度跟踪
+        # Progress tracking
         self.processed_count = 0
         self.total_files = 0
         self.start_time = None
 
-        # 支持的文件扩展名
+        # Supported file extensions
         self.text_extensions = {
             ".txt",
             ".md",
@@ -61,7 +61,7 @@ class ThreadSafeFileProcessor:
             ".cmake",
         }
 
-        # 扩展名到 Markdown 代码语言的映射
+        # Extension to Markdown code language mapping
         self.extension_to_lang = {
             ".py": "python",
             ".js": "javascript",
@@ -97,7 +97,7 @@ class ThreadSafeFileProcessor:
             ".txt": "text",
         }
 
-        # 性能统计
+        # Performance statistics
         self.stats = {
             "files_per_second": 0,
             "total_processing_time": 0,
@@ -105,7 +105,7 @@ class ThreadSafeFileProcessor:
         }
 
     def read_text_file(self, file_path):
-        """读取文本文件内容 - 优化版本"""
+        """Read text file content - optimized version"""
         encodings = ["utf-8", "gbk", "gb2312", "latin1"]
         for encoding in encodings:
             try:
@@ -114,11 +114,11 @@ class ThreadSafeFileProcessor:
             except UnicodeDecodeError:
                 continue
             except Exception as e:
-                return f"读取错误: {str(e)}"
-        return "无法解码文件内容"
+                return f"Read error: {str(e)}"
+        return "Unable to decode file content"
 
     def get_file_info(self, file_path):
-        """获取文件基本信息"""
+        """Get basic file information"""
         try:
             stat = os.stat(file_path)
             return {
@@ -131,7 +131,7 @@ class ThreadSafeFileProcessor:
             return {"size": 0, "error": str(e)}
 
     def process_single_file(self, file_path, file_id):
-        """处理单个文件 - 线程安全版本"""
+        """Process single file - thread-safe version"""
         thread_id = threading.current_thread().ident
 
         if thread_id not in self.stats["thread_stats"]:
@@ -178,7 +178,7 @@ class ThreadSafeFileProcessor:
             }
 
     def update_progress(self):
-        """更新进度 - 线程安全"""
+        """Update progress - thread-safe"""
         with self.progress_lock:
             self.processed_count += 1
             if (
@@ -190,37 +190,37 @@ class ThreadSafeFileProcessor:
                 progress = (self.processed_count / self.total_files) * 100
 
                 print(
-                    f"\r进度: {self.processed_count}/{self.total_files} "
+                    f"\rProgress: {self.processed_count}/{self.total_files} "
                     f"({progress:.1f}%) - {fps:.1f} files/s - "
-                    f"用时: {elapsed:.1f}s",
+                    f"Time elapsed: {elapsed:.1f}s",
                     end="",
                     flush=True,
                 )
 
     def collect_all_files(self):
-        """收集所有文件路径"""
+        """Collect all file paths"""
         all_files = []
         if not os.path.exists(self.source_dir):
-            print(f"错误: 源目录 '{self.source_dir}' 不存在")
+            print(f"Error: Source directory '{self.source_dir}' does not exist")
             return all_files
 
-        print(f"正在扫描目录: {self.source_dir}")
+        print(f"Scanning directory: {self.source_dir}")
         for root, dirs, files in os.walk(self.source_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 all_files.append(file_path)
 
         self.total_files = len(all_files)
-        print(f"发现 {self.total_files} 个文件")
+        print(f"Found {self.total_files} files")
         return all_files
 
     def process_directory_multithread(self):
-        """多线程处理目录"""
+        """Multithreaded directory processing"""
         all_files = self.collect_all_files()
         if not all_files:
             return False
 
-        print(f"开始多线程处理 (工作线程数: {self.max_workers})")
+        print(f"Starting multithreaded processing (worker threads: {self.max_workers})")
         print("-" * 60)
 
         self.start_time = time.time()
@@ -239,7 +239,7 @@ class ThreadSafeFileProcessor:
                         self.dataset.append(result)
                     self.update_progress()
                 except Exception as e:
-                    print(f"\n处理文件失败 {file_path}: {e}")
+                    print(f"\nFailed to process file {file_path}: {e}")
 
         print("\n" + "=" * 60)
         total_time = time.time() - self.start_time
@@ -248,20 +248,20 @@ class ThreadSafeFileProcessor:
             self.total_files / total_time if total_time > 0 else 0
         )
 
-        print(f"处理完成!")
-        print(f"总用时: {total_time:.2f} 秒")
-        print(f"处理速度: {self.stats['files_per_second']:.2f} 文件/秒")
-        print(f"活跃线程数: {len(self.stats['thread_stats'])}")
+        print(f"Processing completed!")
+        print(f"Total time: {total_time:.2f} seconds")
+        print(f"Processing speed: {self.stats['files_per_second']:.2f} files/second")
+        print(f"Active threads: {len(self.stats['thread_stats'])}")
 
         return True
 
     def generate_markdown_report(self):
-        """生成完整的 Markdown 报告"""
-        # 创建输出目录（如果不存在）
+        """Generate complete Markdown report"""
+        # Create output directory (if it doesn't exist)
         Path(self.output_file).parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.output_file, "w", encoding="utf-8") as md:
-            md.write("## 🔍 文件内容详情\n\n")
+            md.write("## 🔍 File Content Details\n\n")
             for item in sorted(self.dataset, key=lambda x: x.get("id", 0)):
                 if "error" in item:
                     continue
@@ -269,29 +269,31 @@ class ThreadSafeFileProcessor:
                 extension = item["extension"]
                 lang = self.extension_to_lang.get(extension, "")
 
-                md.write(f"### 📄 文件 #{item['id']} - `{item['filename']}`\n\n")
-                md.write(f"- **路径**: `{item['path']}`\n")
-                md.write(f"- **大小**: `{item['file_info']['size']:,} B`\n")
-                md.write(f"- **修改时间**: `{item['file_info']['modified_time']}`\n")
+                md.write(f"### 📄 File #{item['id']} - `{item['filename']}`\n\n")
+                md.write(f"- **Path**: `{item['path']}`\n")
+                md.write(f"- **Size**: `{item['file_info']['size']:,} B`\n")
+                md.write(
+                    f"- **Modified Time**: `{item['file_info']['modified_time']}`\n"
+                )
 
                 content = item.get("content", "")
 
-                md.write("#### 内容预览\n\n")
+                md.write("#### Content Preview\n\n")
 
                 if lang:
-                    # 使用对应语言的代码块包裹
+                    # Wrap with corresponding language code block
                     md.write(f"```{lang}\n")
                     md.write(content)
                     md.write("\n```\n\n")
                 else:
-                    # 普通文本或未知类型，直接写入
+                    # Plain text or unknown type, write directly
                     md.write(content)
                     md.write("\n\n")
 
-        print(f"\n✅ Markdown 报告已生成: {self.output_file}")
+        print(f"\n✅ Markdown report generated: {self.output_file}")
 
     def run(self):
-        """运行完整流程"""
+        """Run complete process"""
         if self.process_directory_multithread():
             self.generate_markdown_report()
             return True
@@ -299,10 +301,10 @@ class ThreadSafeFileProcessor:
 
 
 def main():
-    """主函数"""
-    source_directory = "./source"  # 源目录
-    output_md = "./dataset/dataset.md"  # 输出为 .md
-    max_workers = None  # 自动设置线程数
+    """Main function"""
+    source_directory = "./source"  # Source directory
+    output_md = "./dataset/dataset.md"  # Output as .md
+    max_workers = None  # Automatically set thread count
 
     processor = ThreadSafeFileProcessor(
         source_dir=source_directory,
@@ -310,19 +312,19 @@ def main():
         max_workers=max_workers,
     )
 
-    print("=== 📝 多线程AIMarkdown生成器 (Markdown 输出版) ===")
-    print(f"源目录: {source_directory}")
-    print(f"输出文件: {output_md}")
-    print(f"最大工作线程数: {processor.max_workers}")
-    print(f"CPU核心数: {os.cpu_count()}")
+    print("=== 📝 Multithreaded AIMarkdown Generator (Markdown Output Version) ===")
+    print(f"Source directory: {source_directory}")
+    print(f"Output file: {output_md}")
+    print(f"Max worker threads: {processor.max_workers}")
+    print(f"CPU cores: {os.cpu_count()}")
     print("=" * 60)
 
     success = processor.run()
 
     if success:
-        print("\n🎉 Markdown报告已成功生成为 Markdown 文件！")
+        print("\n🎉 Markdown report successfully generated as Markdown file!")
     else:
-        print("\n❌ 处理失败，请检查源目录是否存在。")
+        print("\n❌ Processing failed, please check if source directory exists.")
 
 
 if __name__ == "__main__":

@@ -10,26 +10,26 @@ clone_or_pull() {
   local target_dir="$user_dir/$repo_name"
 
   if [ -d "$target_dir" ]; then
-    echo "仓库 $repo_name 已存在，正在拉取更新..."
-    cd "$target_dir" || { echo "无法进入目录: $target_dir"; return 1; }
+    echo "Repository $repo_name already exists, pulling updates..."
+    cd "$target_dir" || { echo "Failed to enter directory: $target_dir"; return 1; }
     if git pull --rebase; then
-      echo "更新成功: $repo_name"
+      echo "Update successful: $repo_name"
     else
-      echo "更新失败: $repo_name"
+      echo "Update failed: $repo_name"
     fi
     cd - >/dev/null || exit
   else
-    echo "正在克隆: $repo_name"
+    echo "Cloning: $repo_name"
     if git clone "$repo_url" "$target_dir"; then
-      echo "成功克隆: $repo_name"
+      echo "Successfully cloned: $repo_name"
     else
-      echo "克隆失败: $repo_url"
+      echo "Clone failed: $repo_url"
       return 1
     fi
   fi
 }
 
-echo "克隆 hyperlane-dev 组织下的仓库..."
+echo "Cloning repositories under hyperlane-dev organization..."
 curl -s "https://api.github.com/orgs/hyperlane-dev/repos?per_page=100" |
   grep -o '"clone_url": "[^"]*"' |
   sed 's/"clone_url": "\(.*\)"/\1/' |
@@ -38,7 +38,7 @@ curl -s "https://api.github.com/orgs/hyperlane-dev/repos?per_page=100" |
     clone_or_pull "$repo" "$repo_name"
   done
 
-echo "克隆 crates-dev 组织下的仓库..."
+echo "Cloning repositories under crates-dev organization..."
 curl -s "https://api.github.com/orgs/crates-dev/repos?per_page=100" |
   grep -o '"clone_url": "[^"]*"' |
   sed 's/"clone_url": "\(.*\)"/\1/' |
@@ -47,7 +47,7 @@ curl -s "https://api.github.com/orgs/crates-dev/repos?per_page=100" |
     clone_or_pull "$repo" "$repo_name"
   done
 
-echo "克隆 eastspire 组织下的仓库..."
+echo "Cloning repositories under eastspire organization..."
 curl -s "https://api.github.com/orgs/eastspire/repos?per_page=100" |
   grep -o '"clone_url": "[^"]*"' |
   sed 's/"clone_url": "\(.*\)"/\1/' |
@@ -56,7 +56,7 @@ curl -s "https://api.github.com/orgs/eastspire/repos?per_page=100" |
     clone_or_pull "$repo" "$repo_name"
   done
 
-echo "克隆 eastspire/ltpp-docs..."
+echo "Cloning eastspire/ltpp-docs..."
 clone_or_pull "https://github.com/eastspire/ltpp-docs" "ltpp-docs"
 
-echo "所有仓库克隆/更新完成！"
+echo "All repositories cloned/updated successfully!"

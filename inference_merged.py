@@ -4,18 +4,18 @@ import os
 from dotenv import load_dotenv
 import traceback
 
-# 加载环境变量
+# Load environment variables
 load_dotenv()
 
-# 从环境变量获取配置
+# Get configuration from environment variables
 MERGED_MODEL_DIR = os.getenv("MERGED_MODEL_DIR")
 
 
 def load_model():
-    """加载合并后的模型"""
+    """Load merged model"""
     try:
         print(f"Loading merged model from {MERGED_MODEL_DIR}")
-        # 加载合并后的模型
+        # Load merged model
         model = AutoModelForCausalLM.from_pretrained(
             MERGED_MODEL_DIR,
             torch_dtype=(
@@ -28,14 +28,14 @@ def load_model():
         )
         print("Merged model loaded successfully")
 
-        # 加载tokenizer
+        # Load tokenizer
         print(f"Loading tokenizer from {MERGED_MODEL_DIR}")
         tokenizer = AutoTokenizer.from_pretrained(
             MERGED_MODEL_DIR, trust_remote_code=True
         )
         print("Tokenizer loaded successfully")
 
-        # 设置pad token
+        # Set pad token
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
 
@@ -47,13 +47,13 @@ def load_model():
 
 
 def generate_response(model, tokenizer, prompt):
-    """生成模型响应"""
+    """Generate model response"""
     try:
-        # 准备输入
+        # Prepare input
         inputs = tokenizer(prompt, return_tensors="pt", padding=True, truncation=True)
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
-        # 生成响应
+        # Generate response
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
@@ -64,7 +64,7 @@ def generate_response(model, tokenizer, prompt):
                 pad_token_id=tokenizer.pad_token_id,
             )
 
-        # 解码响应
+        # Decode response
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
         return response
     except Exception as e:
@@ -74,15 +74,15 @@ def generate_response(model, tokenizer, prompt):
 
 
 def main():
-    """主函数"""
-    # 加载模型和tokenizer
+    """Main function"""
+    # Load model and tokenizer
     model, tokenizer = load_model()
 
     if model is None or tokenizer is None:
         print("Failed to load model or tokenizer")
         return
 
-    # 设置提示模板
+    # Set prompt template
     alpaca_prompt = """<|im_start|>system
 {}<|im_end|>
 <|im_start|>user
@@ -90,19 +90,19 @@ def main():
 <|im_start|>assistant
 """
 
-    # 问题
+    # Question
     question = "Who are you?"
     system_prompt = (
         "You are an AI assistant for the Hyperlane Web framework written in Rust."
     )
 
-    # 构建完整提示
+    # Build complete prompt
     prompt = alpaca_prompt.format(system_prompt, question)
 
-    # 生成响应
-    print(f"提问: {question}")
+    # Generate response
+    print(f"Question: {question}")
     response = generate_response(model, tokenizer, prompt)
-    print(f"回答: {response}")
+    print(f"Answer: {response}")
 
 
 if __name__ == "__main__":

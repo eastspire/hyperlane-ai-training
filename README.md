@@ -96,8 +96,7 @@ The project requires the following Python packages:
 
 ## Output
 
-After successful execution, the final GGUF model will be located at:
-`$OUTPUT_DIR/$OUTPUT_DIR.gguf`
+After successful execution, the final GGUF model will be located at: `$OUTPUT_DIR/$OUTPUT_DIR.gguf`
 
 ## License
 

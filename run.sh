@@ -4,7 +4,61 @@
 set -e
 
 python -m venv ./venv
-source ./venv/Scripts/activate
+
+# Check if venv directory exists
+if [ ! -d "./venv" ]; then
+    echo "Error: venv directory not found. Please create a virtual environment first."
+    exit 1
+fi
+
+# Detect operating system
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+    # Windows system (Git Bash)
+    if [ -f "./venv/Scripts/activate" ]; then
+        source ./venv/Scripts/activate
+        echo "Virtual environment activated (Windows)."
+    else
+        echo "Error: Cannot find Windows activation script."
+        exit 1
+    fi
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS system
+    if [ -f "./venv/bin/activate" ]; then
+        source ./venv/bin/activate
+        echo "Virtual environment activated (macOS)."
+    else
+        echo "Error: Cannot find macOS activation script."
+        exit 1
+    fi
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux system
+    if [ -f "./venv/bin/activate" ]; then
+        source ./venv/bin/activate
+        echo "Virtual environment activated (Linux)."
+    else
+        echo "Error: Cannot find Linux activation script."
+        exit 1
+    fi
+else
+    # Try both ways
+    if [ -f "./venv/bin/activate" ]; then
+        source ./venv/bin/activate
+        echo "Virtual environment activated (Unix-like system)."
+    elif [ -f "./venv/Scripts/activate" ]; then
+        source ./venv/Scripts/activate
+        echo "Virtual environment activated (Windows system)."
+    else
+        echo "Error: Cannot find activation script for your system."
+        exit 1
+    fi
+fi
+
+# Verify that the virtual environment is activated
+if [ -z "$VIRTUAL_ENV" ]; then
+    echo "Warning: Virtual environment may not be activated properly."
+else
+    echo "Virtual environment path: $VIRTUAL_ENV"
+fi
 
 # Default max_steps value
 max_steps=1000

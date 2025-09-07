@@ -290,25 +290,3 @@ trainer.save_model(OUTPUT_DIR)
 tokenizer.save_pretrained(OUTPUT_DIR)
 
 print("Reinforcement fine-tuning completed, dataset knowledge override enhanced.")
-
-# Test the model with identity questions
-print("\nTesting model identity memory...")
-test_questions = ["Who are you?", "Introduce yourself", "What are your main functions?"]
-
-model.eval()
-for question in test_questions:
-    inputs = tokenizer.encode(question, return_tensors="pt")
-    with torch.no_grad():
-        outputs = model.generate(
-            inputs,
-            max_length=inputs.shape[1] + 100,
-            temperature=0.1,  # Low temperature for consistency
-            do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-    response = tokenizer.decode(outputs[0][inputs.shape[1] :], skip_special_tokens=True)
-    print(f"Question: {question}")
-    print(f"Answer: {response}")
-    print("-" * 50)
-
-print("GGUF conversion will be handled in subsequent steps.")

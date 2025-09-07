@@ -1,6 +1,5 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import PeftModel
 import os
 from dotenv import load_dotenv
 import traceback
@@ -9,17 +8,16 @@ import traceback
 load_dotenv()
 
 # 从环境变量获取配置
-MODEL_NAME = os.getenv("MODEL_NAME")
-OUTPUT_DIR = os.getenv("OUTPUT_DIR")
+MERGED_MODEL_DIR = os.getenv("MERGED_MODEL_DIR")
 
 
 def load_model():
-    """加载基础模型和LoRA适配器"""
+    """加载合并后的模型"""
     try:
-        print(f"Loading base model from {MODEL_NAME}")
-        # 加载基础模型
+        print(f"Loading merged model from {MERGED_MODEL_DIR}")
+        # 加载合并后的模型
         model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME,
+            MERGED_MODEL_DIR,
             torch_dtype=(
                 torch.bfloat16
                 if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
@@ -28,26 +26,18 @@ def load_model():
             device_map="auto",
             trust_remote_code=True,
         )
-        print("Base model loaded successfully")
+        print("Merged model loaded successfully")
 
         # 加载tokenizer
-        print(f"Loading tokenizer from {MODEL_NAME}")
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+        print(f"Loading tokenizer from {MERGED_MODEL_DIR}")
+        tokenizer = AutoTokenizer.from_pretrained(
+            MERGED_MODEL_DIR, trust_remote_code=True
+        )
         print("Tokenizer loaded successfully")
 
         # 设置pad token
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-
-        # 检查是否存在LoRA适配器并加载
-        if os.path.exists(OUTPUT_DIR) and any(
-            f.startswith("adapter_config") for f in os.listdir(OUTPUT_DIR)
-        ):
-            print(f"Loading LoRA adapter from {OUTPUT_DIR}")
-            model = PeftModel.from_pretrained(model, OUTPUT_DIR, trust_remote_code=True)
-            print("LoRA adapter loaded successfully")
-        else:
-            print("No LoRA adapter found, using base model only")
 
         return model, tokenizer
     except Exception as e:
@@ -87,7 +77,7 @@ def main():
     """主函数"""
     # 加载模型和tokenizer
     model, tokenizer = load_model()
-    
+
     if model is None or tokenizer is None:
         print("Failed to load model or tokenizer")
         return
@@ -102,7 +92,9 @@ def main():
 
     # 问题
     question = "Who are you?"
-    system_prompt = "You are an AI assistant for the Hyperlane Web framework written in Rust."
+    system_prompt = (
+        "You are an AI assistant for the Hyperlane Web framework written in Rust."
+    )
 
     # 构建完整提示
     prompt = alpaca_prompt.format(system_prompt, question)

@@ -1,4 +1,4 @@
-# Hyperlane AI Training Project
+# Hyperlane AI
 
 This project provides a complete pipeline for fine-tuning language models and converting them to GGUF format for efficient inference.
 

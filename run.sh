@@ -103,6 +103,7 @@ python merge_model.py
 
 # 5. Convert the model to GGUF format
 echo "Converting the merged model to GGUF format..."
+git clone https://github.com/ggml-org/llama.cpp
 python llama.cpp/convert_hf_to_gguf.py "$MERGED_MODEL_DIR" --outfile "$OUTPUT_DIR/$OUTPUT_DIR.gguf"
 
 # 6. Analyze training arguments

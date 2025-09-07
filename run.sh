@@ -110,9 +110,5 @@ python llama.cpp/convert_hf_to_gguf.py "$MERGED_MODEL_DIR" --outfile "$OUTPUT_DI
 echo "Analyzing training arguments..."
 python analyze_training_args.py
 
-# 7. Test merged model inference
-echo "Testing merged model inference..."
-python inference_merged.py
-
 echo "All tasks completed successfully!"
 echo "The final GGUF model is located at: $OUTPUT_DIR/$OUTPUT_DIR.gguf"
